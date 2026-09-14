@@ -1,0 +1,14 @@
+{
+  "name": "agrilink",
+  "private": true,
+  "workspaces": ["apps/api", "apps/web"],
+  "scripts": {
+    "dev:api": "npm run start:dev --workspace=apps/api",
+    "dev:web": "npm run dev --workspace=apps/web",
+    "build:api": "npm run build --workspace=apps/api",
+    "build:web": "npm run build --workspace=apps/web",
+    "test:api": "npm run test --workspace=apps/api",
+    "lint:api": "npm run lint --workspace=apps/api",
+    "typecheck:api": "npm run typecheck --workspace=apps/api"
+  }
+}
