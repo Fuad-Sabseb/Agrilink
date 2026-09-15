@@ -19,8 +19,8 @@ Status legend: ✅ done · 🔶 partial · ⬜ not started.
 | 6 | 12 | Market Price Intelligence | ✅ |
 | 7 | 13 | Market Comparison | ✅ |
 | 7 | 14 | Historical Prices & Trends | ✅ |
-| 8 | 15 | Transport Cost System | ⬜ |
-| 8 | 16 | Recommendation Engine (Where Should I Sell?) | ⬜ |
+| 8 | 15 | Transport Cost System | ✅ |
+| 8 | 16 | Recommendation Engine (Where Should I Sell?) | ✅ |
 | 9 | 17 | Recommendation API | ⬜ |
 | 9 | 18 | Recommendation UI | ⬜ |
 | 10 | 19 | Recommendation Edge Cases | ⬜ |

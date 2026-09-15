@@ -897,3 +897,170 @@ phase as done).
   sleeping a fixed duration.
 
 **Next phase:** 15 — Transport Cost System.
+
+---
+
+## DAY 8
+
+### PHASE 15 — Transport Cost System
+**STATUS:** COMPLETE
+
+**Completed:**
+- `TransportCostRule` entity implementing the architecture decision documented back on Day 1
+  (`docs/architecture.md`): a static, admin-configured distance/rate table per (origin zone,
+  market) route — not a live routing API. `distanceKm` is admin-entered, matching the
+  proposal's own description of the transport-cost layer starting from "rule-of-thumb ETB/km/
+  ton by route type" (§8) before any real routing integration exists.
+- Two cost components per route, matching Phase 16's formula exactly: `ratePerKgPerKm` (a
+  small decimal coefficient — kept as a proper decimal, not integer cents, since rounding a
+  value this small to whole cents before multiplying it by distance and quantity would lose
+  real precision) and `transitFeeCents` (a flat, genuine currency amount — the "informal
+  transit/checkpoint fees" the proposal explicitly names in §7.4 — which does fit the
+  established integer-cents pattern).
+- One rule per route, enforced by a database-level unique constraint on (originZone,
+  marketId) — a route's rate is a current configuration value an admin updates in place, not
+  a historical log like `MarketPrice`.
+- Admin CRUD: `POST/GET/PATCH /admin/transport-cost-rules`. No public read endpoint —
+  deliberately: a transport rate is only ever consumed internally by the recommendation
+  engine, never browsed directly by a farmer; there's no proposal requirement for a "view raw
+  transport rates" screen.
+- Seed data: three routes from "Jimma Zone" (the origin every seeded farm/profile uses) to all
+  three markets. The rate (0.0138 ETB/kg/km) and flat fee (1,620 ETB) aren't arbitrary — they
+  were derived by solving the proposal's own §8 worked example (Jimma: 20km/5,000kg→3,000 ETB;
+  Nekemte: 150km/5,000kg→12,000 ETB) as two equations in two unknowns, so this build's demo
+  data reproduces the proposal's own showcase numbers almost exactly rather than inventing
+  unrelated placeholder figures.
+
+**Files changed:** `logistics/entities/transport-cost-rule.entity.ts`, `logistics/dto/
+{create,update}-transport-cost-rule.dto.ts`, `logistics/transport-cost-rules.service.ts`,
+`logistics/admin/admin-transport-cost-rules.controller.ts`, `logistics/logistics.module.ts`,
+`app.module.ts` (registered `LogisticsModule`); migrations `TransportCostRules` (schema —
+also includes several harmless no-op `CHANGE COLUMN` statements TypeORM's diff tool
+auto-generated for pre-existing nullable columns; verified before running that row counts on
+`farms` and `market_prices` were unchanged after) and `SeedTransportCostRules` (data).
+
+**Database changes:** `transport_cost_rules` table; 3 seeded routes (Jimma Zone → each of the
+3 markets).
+
+**API changes:** `POST/GET/PATCH /api/v1/admin/transport-cost-rules[/:id]`.
+
+---
+
+### PHASE 16 — Recommendation Engine
+**STATUS:** COMPLETE
+
+**Completed — the flagship "Where Should I Sell?" feature, implemented exactly as proposal §8
+specifies:**
+- `Gross Revenue = Price/kg × Quantity`
+- `Est. Total Cost = Transport Cost + configured transit/logistics fee`
+- `Est. Net Revenue = Gross Revenue − Est. Total Cost`
+- Candidates ranked by net revenue, top-ranked flagged `isRecommended: true` — matching the
+  proposal's own example UI text ("Recommendation: BEST ESTIMATED NET RETURN"), rendered
+  verbatim in the frontend.
+- **Explainability (proposal rule 11) implemented as full transparency, not just a ranking:**
+  every candidate returns price, freshness, source, distance, and the complete cost breakdown
+  (transport-cost component, transit fee, total cost) that went into its net revenue — a
+  farmer (or a reviewer of this code) can verify the arithmetic, not just trust a number.
+- Markets missing a price or missing a configured transport route are excluded from ranking
+  with an explicit machine-readable reason (`no_price_data` / `no_transport_route_configured`)
+  rather than silently dropped, assumed free, or crashing the request — shown in the frontend
+  as a plain-language "not shown above" list. A market with a route but genuinely no recorded
+  price, and a market with a price but no configured route, are two different situations and
+  are distinguished as such.
+- A `isLoss` flag when estimated total cost exceeds gross revenue — surfaced in the UI as an
+  explicit warning, not just a negative number a farmer has to notice themselves.
+- Farm ownership enforced through the existing `FarmsService.findOneOwnedBy` (same 404-for-
+  both-nonexistent-and-not-yours pattern used everywhere else in this build) — a farmer can
+  only get a recommendation using their own farm as the origin.
+- Farmer-only endpoint (`GET /recommendation/where-should-i-sell`), all monetary arithmetic
+  done in integer cents with rounding applied exactly once at the point a real ETB amount is
+  produced (same principle as `MarketPricesService`), converted to decimal-string ETB only at
+  the API boundary.
+- Frontend: `/app/where-should-i-sell` — farm/crop/quantity form, ranked result cards with the
+  full cost breakdown, the gold "BEST ESTIMATED NET RETURN" badge on the winner, a red loss
+  warning where applicable, and an honest "not shown above" section explaining exclusions.
+  `/app` now gives this feature the prominent visual placement `docs/design-system.md` called
+  for back on Day 1 ("PRIMARY ACTION... should receive strong visual emphasis because it is a
+  flagship feature") — a large gold CTA card, now finally backed by a real feature instead of
+  a roadmap bullet.
+
+**Verified against the proposal's own worked example, not just internal consistency:** ran the
+exact scenario from proposal §8 (5,000 kg of potatoes, Jimma vs. Nekemte) through the live
+API. Result: Jimma's net revenue came back as **122,000.00 ETB — an exact match** to the
+proposal's own Table 2. Nekemte came back at 128,030.00 ETB against the proposal's 128,000 (a
+30 ETB difference from the seed data's clean-constant rounding, documented in the seed
+migration itself). Nekemte correctly outranks Jimma despite Jimma's lower transport cost and
+Nekemte's lower headline price margin — reproducing the entire point of the flagship feature
+(a higher price 150km away can still be the better choice) end to end, with real numbers,
+not asserted in the abstract.
+
+**A real bug caught by my own test, in the test itself — not the implementation:** while
+writing the worked-example reproduction test, I asserted `transportCost` should equal the
+proposal's 3,000 ETB figure and the test failed, showing 1,380 ETB instead. Tracing it
+revealed the test's assumption was wrong, not the code's math: this build deliberately splits
+"Est. Transport Cost" into two separate, explainable components — a distance-based
+`transportCost` (1,380 ETB) and a flat `transitFee` (1,620 ETB) — whereas the proposal's single
+worked-example column is their sum (`totalCost`, 3,000 ETB exactly). Fixed the test's
+assertions to check the correct field, and added an explicit doc comment on the
+`RecommendationCandidate` interface itself clarifying this distinction, so a future reader
+(including a future me) doesn't make the same mistake reading the code cold.
+
+**Files changed:** `recommendation/recommendation.service.ts`, `recommendation/
+recommendation.controller.ts`, `recommendation/recommendation.module.ts`, `recommendation/dto/
+get-recommendation.dto.ts`, `farmers/farmers.module.ts` (exported `FarmsService` for cross-
+module use), `app.module.ts` (registered `RecommendationModule`); frontend: `lib/
+recommendation/{types,api-client}.ts`, `app/app/where-should-i-sell/page.tsx` (new), `app/app/
+page.tsx` (flagship CTA placement, removed the now-built roadmap item)
+
+**API changes:** `GET /api/v1/recommendation/where-should-i-sell?farmId=&cropId=&quantityKg=`.
+
+**Frontend changes:** `/app/where-should-i-sell` (new); `/app` updated with the prominent CTA.
+
+**Tests:** 8 new unit tests (`recommendation.service.spec.ts`): the worked-example
+reproduction (with the field-mapping bug described above caught and fixed before this phase
+was considered done), correct ranking by net revenue rather than by price or input order
+(including a scenario where the highest-priced market is deliberately the worst net choice —
+proving the engine doesn't just default to "highest price wins"), both exclusion reasons
+tested independently, an empty-candidates result handled gracefully, the loss flag, and
+ownership/crop-validation propagation. All 64 backend tests (10 auth + 11 farms + 14
+farm-crops + 21 market-prices + 8 recommendation) pass together.
+
+**Lint:** PASS (api + web). **Typecheck:** PASS (api). **Build:** PASS (api + web, all 11
+routes).
+
+**Verification performed this session:**
+1. Backend: typecheck, lint, all 64 unit tests, build — all PASS.
+2. Frontend: `next lint`, `next build` — both PASS, all 11 routes compile.
+3. A full live end-to-end test reproducing the proposal's own worked example via real HTTP
+   calls against live MySQL — confirmed the exact 122,000 ETB Jimma figure and the correct
+   Nekemte-wins ranking — plus role/ownership authorization checks (buyer 403, cross-owner
+   farm 404), input validation (zero/negative quantity 400), and admin transport-rule CRUD
+   including duplicate-route rejection. **10/10 assertions passed.**
+4. A contract-check script confirming the live recommendation response matches the frontend's
+   TypeScript types field-for-field, including that exactly one candidate is ever flagged
+   `isRecommended` and that candidates are actually sorted by net revenue descending, not
+   merely present. **PASS, no mismatches.**
+5. Re-ran the full Day 1–7 regression (register through market-prices) plus the new
+   recommendation endpoint. **10/10 passed**, no regressions.
+6. An 8-route check across both live servers, including the new `/app/where-should-i-sell`
+   page. **8/8 passed.** Zero unexpected errors in any server log across all runs.
+
+**Known issues:**
+- No headless browser in this sandbox — same standing caveat since Day 3.
+- Deeper edge-case handling (equal net revenues between markets, near-zero-margin messaging,
+  more refined "invalid route" UX) is explicitly Phase 19–20's scope, not this one — this
+  phase implements the calculation and a plain, honest exclude-with-reason behavior for the
+  two missing-data cases, not the full UX hardening pass planned for those phases.
+- `TransportCostRule` has no admin-facing UI (consistent with Phase 15's own "Admin APIs"
+  framing and the established pattern from Days 6/7 — admin screens are Phase 32's job).
+- The recommendation engine currently only considers markets that already have both a price
+  and a route — it does not surface "this market exists but we have zero data for it at all"
+  separately from "we have partial data" beyond the two reason codes already implemented;
+  revisit if that distinction turns out to matter once there are more markets than the 3
+  seeded ones.
+
+**Next phase:** 17 — Recommendation API (hardening/extension of what Phase 16 built — see
+Day 9 for what's added there specifically; this phase already ships a working, tested API,
+Phase 17 is scoped in the original plan to add candidate-selection refinement and further
+explanation/source-timestamp detail on top of it).
+

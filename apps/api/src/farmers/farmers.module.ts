@@ -25,7 +25,9 @@ import { FarmerDashboardService } from './farmer-dashboard.service';
     FarmerDashboardService,
   ],
   // Exported so AuthModule can auto-create an empty profile at registration
-  // time (see AuthService.register()) without duplicating this logic.
-  exports: [FarmerProfileService],
+  // time (see AuthService.register()), and so RecommendationModule
+  // (Phase 16) can look up a farm's zone/ownership without duplicating
+  // that logic.
+  exports: [FarmerProfileService, FarmsService],
 })
 export class FarmersModule {}

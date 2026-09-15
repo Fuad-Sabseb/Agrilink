@@ -10,6 +10,8 @@ import { AuthModule } from './auth/auth.module';
 import { FarmersModule } from './farmers/farmers.module';
 import { CropsModule } from './crops/crops.module';
 import { MarketsModule } from './markets/markets.module';
+import { LogisticsModule } from './logistics/logistics.module';
+import { RecommendationModule } from './recommendation/recommendation.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { RolesGuard } from './auth/guards/roles.guard';
 
@@ -30,10 +32,12 @@ import { RolesGuard } from './auth/guards/roles.guard';
     FarmersModule,
     CropsModule,
     MarketsModule,
-    // Marketplace, Logistics, Recommendation, Transactions, Notifications,
-    // Admin modules are added in their respective phases (Day 7 onward) —
-    // intentionally not stubbed empty here, so the module list always
-    // reflects what's actually implemented.
+    LogisticsModule,
+    RecommendationModule,
+    // Marketplace, Transactions, Notifications, Admin modules are added in
+    // their respective phases (Day 9 onward) — intentionally not stubbed
+    // empty here, so the module list always reflects what's actually
+    // implemented.
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

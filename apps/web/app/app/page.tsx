@@ -30,7 +30,6 @@ const LANGUAGE_LABELS: Record<string, string> = {
 // buttons (proposal rule: no pages that only look functional).
 const ROLE_ROADMAP: Record<string, { title: string; phase: string }[]> = {
   farmer: [
-    { title: '"Where Should I Sell?" recommendation', phase: 'Phase 15–20' },
     { title: 'Buyer marketplace', phase: 'Phase 21–24' },
     { title: 'Transport requests & shipments', phase: 'Phase 25–28' },
   ],
@@ -108,6 +107,21 @@ function FarmerDashboardView() {
           <p className="text-xs text-white/50">Crops grown</p>
         </Card>
       </div>
+
+      {/* The flagship feature gets strong visual emphasis, per the design
+          system's own farmer-dashboard hierarchy (docs/design-system.md,
+          written on Day 1 before this feature existed — now that it's
+          real, it earns the prominent placement that was always planned
+          for it, ahead of the market/crop detail sections below). */}
+      <Link href="/app/where-should-i-sell">
+        <div className="rounded-card bg-agrilink-gold text-agrilink-green-dark px-5 py-4 flex items-center justify-between hover:brightness-105 transition">
+          <div>
+            <p className="font-bold">Where should I sell?</p>
+            <p className="text-xs opacity-80">See your best net return by market</p>
+          </div>
+          <span className="text-xl">→</span>
+        </div>
+      </Link>
 
       {cropsSummary.length > 0 && (
         <Card>
