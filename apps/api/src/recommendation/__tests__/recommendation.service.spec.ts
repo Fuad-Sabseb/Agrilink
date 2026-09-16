@@ -365,4 +365,157 @@ describe('RecommendationService', () => {
       expect(result.candidates[0].priceSource).toBe('admin_manual');
     });
   });
+
+  // ---- Phase 19: edge cases ----
+
+  describe('missing farm location', () => {
+    it('returns farm_location_missing instead of attempting a routeless calculation', async () => {
+      farmsService.findOneOwnedBy.mockResolvedValue({ ...farm, zone: '' });
+
+      const result = await service.getRecommendation('farmer-1', 'farm-1', 'crop-1', 1000);
+
+      expect(result.noResultReason).toBe('farm_location_missing');
+      expect(result.candidates).toEqual([]);
+      // Short-circuits before querying prices/routes at all — there is
+      // nothing to look up without an origin zone.
+      expect(marketPricesService.findLatestPerMarket).not.toHaveBeenCalled();
+      expect(transportCostRulesService.findActiveForZone).not.toHaveBeenCalled();
+    });
+
+    it('treats a whitespace-only zone as missing, not as a real zone name', async () => {
+      farmsService.findOneOwnedBy.mockResolvedValue({ ...farm, zone: '   ' });
+      const result = await service.getRecommendation('farmer-1', 'farm-1', 'crop-1', 1000);
+      expect(result.noResultReason).toBe('farm_location_missing');
+    });
+
+    it('trims the zone before looking up routes, so " Jimma Zone " still matches', async () => {
+      farmsService.findOneOwnedBy.mockResolvedValue({ ...farm, zone: '  Jimma Zone  ' });
+      marketPricesService.findLatestPerMarket.mockResolvedValue([]);
+      transportCostRulesService.findActiveForZone.mockResolvedValue([]);
+
+      await service.getRecommendation('farmer-1', 'farm-1', 'crop-1', 1000);
+
+      expect(transportCostRulesService.findActiveForZone).toHaveBeenCalledWith('Jimma Zone');
+    });
+  });
+
+  describe('invalid transport route data', () => {
+    const priceOnly = [
+      { market: jimmaMarket, pricePerKg: '25.00', freshness: 'verified', source: 'admin_manual', observationDate: '2026-09-10' },
+    ];
+
+    it.each([
+      ['zero distance', { distanceKm: '0', ratePerKgPerKm: '0.01', transitFeeCents: 0 }],
+      ['negative distance', { distanceKm: '-20', ratePerKgPerKm: '0.01', transitFeeCents: 0 }],
+      ['zero rate', { distanceKm: '20', ratePerKgPerKm: '0', transitFeeCents: 0 }],
+      ['negative rate', { distanceKm: '20', ratePerKgPerKm: '-0.01', transitFeeCents: 0 }],
+      ['negative transit fee', { distanceKm: '20', ratePerKgPerKm: '0.01', transitFeeCents: -500 }],
+      ['non-numeric distance', { distanceKm: 'abc', ratePerKgPerKm: '0.01', transitFeeCents: 0 }],
+      ['non-numeric rate', { distanceKm: '20', ratePerKgPerKm: 'oops', transitFeeCents: 0 }],
+    ])('excludes a route with %s rather than producing a bogus figure', async (_label, badRule) => {
+      marketPricesService.findLatestPerMarket.mockResolvedValue(priceOnly);
+      transportCostRulesService.findActiveForZone.mockResolvedValue([
+        { marketId: 'market-jimma', market: jimmaMarket, ...badRule },
+      ]);
+
+      const result = await service.getRecommendation('farmer-1', 'farm-1', 'crop-1', 1000);
+
+      expect(result.candidates).toEqual([]);
+      expect(result.excluded).toEqual([
+        { market: jimmaMarket, reason: 'invalid_transport_route' },
+      ]);
+      // The specific failure mode this guards against: NaN silently
+      // propagating into every downstream figure.
+      expect(JSON.stringify(result)).not.toContain('NaN');
+    });
+
+    it('still ranks the valid routes when only one of several is broken', async () => {
+      marketPricesService.findLatestPerMarket.mockResolvedValue([
+        ...priceOnly,
+        { market: agaroMarket, pricePerKg: '24.00', freshness: 'verified', source: 'admin_manual', observationDate: '2026-09-10' },
+      ]);
+      transportCostRulesService.findActiveForZone.mockResolvedValue([
+        { marketId: 'market-jimma', market: jimmaMarket, distanceKm: '0', ratePerKgPerKm: '0.01', transitFeeCents: 0 },
+        { marketId: 'market-agaro', market: agaroMarket, distanceKm: '20', ratePerKgPerKm: '0.01', transitFeeCents: 0 },
+      ]);
+
+      const result = await service.getRecommendation('farmer-1', 'farm-1', 'crop-1', 1000);
+
+      expect(result.candidates).toHaveLength(1);
+      expect(result.candidates[0].market.id).toBe('market-agaro');
+      expect(result.candidates[0].isRecommended).toBe(true);
+      expect(result.excluded).toEqual([
+        { market: jimmaMarket, reason: 'invalid_transport_route' },
+      ]);
+    });
+  });
+
+  describe('no-result diagnosis', () => {
+    it('reports no_markets_priced_for_crop when the crop has no price anywhere', async () => {
+      marketPricesService.findLatestPerMarket.mockResolvedValue([]);
+      transportCostRulesService.findActiveForZone.mockResolvedValue([
+        { marketId: 'market-jimma', market: jimmaMarket, distanceKm: '20', ratePerKgPerKm: '0.01', transitFeeCents: 0 },
+      ]);
+
+      const result = await service.getRecommendation('farmer-1', 'farm-1', 'crop-1', 1000);
+      expect(result.noResultReason).toBe('no_markets_priced_for_crop');
+    });
+
+    it('reports no_routes_from_zone when prices exist but no route is configured from this zone', async () => {
+      marketPricesService.findLatestPerMarket.mockResolvedValue([
+        { market: jimmaMarket, pricePerKg: '25.00', freshness: 'verified', source: 'admin_manual', observationDate: '2026-09-10' },
+      ]);
+      transportCostRulesService.findActiveForZone.mockResolvedValue([]);
+
+      const result = await service.getRecommendation('farmer-1', 'farm-1', 'crop-1', 1000);
+      expect(result.noResultReason).toBe('no_routes_from_zone');
+    });
+
+    it('reports no_overlap when prices and routes both exist but never for the same market', async () => {
+      marketPricesService.findLatestPerMarket.mockResolvedValue([
+        { market: jimmaMarket, pricePerKg: '25.00', freshness: 'verified', source: 'admin_manual', observationDate: '2026-09-10' },
+      ]);
+      // A route exists from this zone, but to a different market than the
+      // one that has a price.
+      transportCostRulesService.findActiveForZone.mockResolvedValue([
+        { marketId: 'market-nekemte', market: nekemteMarket, distanceKm: '150', ratePerKgPerKm: '0.01', transitFeeCents: 0 },
+      ]);
+
+      const result = await service.getRecommendation('farmer-1', 'farm-1', 'crop-1', 1000);
+      expect(result.noResultReason).toBe('no_overlap');
+      expect(result.candidates).toEqual([]);
+    });
+
+    it('leaves noResultReason null when there IS a recommendation', async () => {
+      marketPricesService.findLatestPerMarket.mockResolvedValue([
+        { market: jimmaMarket, pricePerKg: '25.00', freshness: 'verified', source: 'admin_manual', observationDate: '2026-09-10' },
+      ]);
+      transportCostRulesService.findActiveForZone.mockResolvedValue([
+        { marketId: 'market-jimma', market: jimmaMarket, distanceKm: '20', ratePerKgPerKm: '0.01', transitFeeCents: 0 },
+      ]);
+
+      const result = await service.getRecommendation('farmer-1', 'farm-1', 'crop-1', 1000);
+      expect(result.noResultReason).toBeNull();
+      expect(result.candidates).toHaveLength(1);
+    });
+  });
+
+  describe('fractional and very small quantities', () => {
+    it('handles a fractional quantity without producing rounding artifacts in the net figure', async () => {
+      marketPricesService.findLatestPerMarket.mockResolvedValue([
+        { market: jimmaMarket, pricePerKg: '25.00', freshness: 'verified', source: 'admin_manual', observationDate: '2026-09-10' },
+      ]);
+      transportCostRulesService.findActiveForZone.mockResolvedValue([
+        { marketId: 'market-jimma', market: jimmaMarket, distanceKm: '20', ratePerKgPerKm: '0.01', transitFeeCents: 0 },
+      ]);
+
+      const result = await service.getRecommendation('farmer-1', 'farm-1', 'crop-1', 0.5);
+
+      // gross = 25 * 0.5 = 12.50; transport = 20 * 0.01 * 0.5 = 0.10
+      expect(result.candidates[0].grossRevenue).toBe('12.50');
+      expect(result.candidates[0].transportCost).toBe('0.10');
+      expect(result.candidates[0].netRevenue).toBe('12.40');
+      expect(result.candidates[0].netRevenue).not.toContain('NaN');
+    });
+  });
 });

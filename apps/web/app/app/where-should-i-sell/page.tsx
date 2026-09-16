@@ -12,6 +12,7 @@ import type { Crop } from '../../../lib/markets/types';
 import type {
   DataQualityWarning,
   ExclusionReason,
+  NoResultReason,
   RecommendationCandidate,
   RecommendationResult,
 } from '../../../lib/recommendation/types';
@@ -25,6 +26,37 @@ import { FreshnessBadge } from '../../../components/ui/FreshnessBadge';
 const EXCLUSION_LABELS: Record<ExclusionReason, string> = {
   no_price_data: 'No price data recorded for this crop at this market yet.',
   no_transport_route_configured: 'No transport route configured from your zone to this market yet.',
+  invalid_transport_route:
+    'The transport route to this market has invalid settings, so a cost estimate could not be produced.',
+};
+
+/**
+ * Phase 19/20 — an empty result has several genuinely different causes,
+ * and each has a different remedy. Telling a farmer "no recommendation
+ * available" and leaving them to guess is a dead end; each of these says
+ * what happened and what (if anything) they can do about it.
+ */
+const NO_RESULT_CONTENT: Record<
+  NoResultReason,
+  { title: string; body: string; action?: { label: string; href: string } }
+> = {
+  farm_location_missing: {
+    title: 'Your farm has no location set',
+    body: 'We work out transport cost from where your farm is. Add the zone for this farm and try again.',
+    action: { label: 'Set your farm location', href: '/app/farms' },
+  },
+  no_markets_priced_for_crop: {
+    title: 'No prices recorded for this crop yet',
+    body: 'None of the markets we track have a recorded price for this crop. Try another crop, or check back once prices are updated.',
+  },
+  no_routes_from_zone: {
+    title: 'No transport routes from your area yet',
+    body: 'We have prices for this crop, but no transport route has been set up from your zone to those markets yet, so we cannot estimate what it would cost you to get there.',
+  },
+  no_overlap: {
+    title: 'Not enough data for a recommendation',
+    body: 'For every market we track, we are missing either a current price for this crop or a transport route from your area. The markets below show which piece is missing.',
+  },
 };
 
 // Plain-language equivalents of the API's machine-readable warnings. The
@@ -79,6 +111,8 @@ function ResultCandidate({
   rank: number;
 }) {
   const [showMath, setShowMath] = useState(candidate.isRecommended);
+  // Stable per-market id so aria-controls points at a real element.
+  const breakdownId = `breakdown-${candidate.market.id}`;
 
   return (
     <Card
@@ -88,21 +122,35 @@ function ResultCandidate({
     >
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-xs text-white/40">#{rank}</p>
-          <h3 className="text-white font-semibold">{candidate.market.name}</h3>
+          <p className="text-xs text-white/40" aria-hidden="true">
+            #{rank}
+          </p>
+          <h3 className="text-white font-semibold">
+            <span className="sr-only">Option {rank}: </span>
+            {candidate.market.name}
+          </h3>
           <p className="text-xs text-white/50">
             {candidate.market.zone} · {candidate.distanceKm} km away
           </p>
         </div>
         <div className="text-right">
+          {/* The visual layout splits the figure from its meaning across
+              two lines; aria-label keeps them together for a screen
+              reader, which would otherwise read a bare number. */}
           <p
             className={`text-lg font-bold ${
               candidate.isLoss ? 'text-agrilink-error' : 'text-white'
             }`}
+            aria-label={`Estimated net revenue ${candidate.netRevenue} Ethiopian Birr`}
           >
             {candidate.netRevenue} ETB
           </p>
-          <p className="text-[11px] text-white/40">{candidate.netRevenuePerKg} ETB/kg net</p>
+          <p className="text-[11px] text-white/40">
+            <span aria-hidden="true">{candidate.netRevenuePerKg} ETB/kg net</span>
+            <span className="sr-only">
+              {candidate.netRevenuePerKg} Ethiopian Birr net per kilogram
+            </span>
+          </p>
         </div>
       </div>
 
@@ -139,23 +187,30 @@ function ResultCandidate({
           </p>
         )}
 
+      {/* Phase 20 accessibility: four identical "Show the calculation"
+          buttons are ambiguous when a screen reader lists controls out of
+          context, so the accessible name names the market too. The
+          visible label stays short. aria-controls ties the button to the
+          region it toggles. */}
       <button
         type="button"
         onClick={() => setShowMath((v) => !v)}
         className="text-xs text-agrilink-gold mt-3"
         aria-expanded={showMath}
+        aria-controls={breakdownId}
+        aria-label={`${showMath ? 'Hide' : 'Show'} the calculation for ${candidate.market.name}`}
       >
         {showMath ? 'Hide the calculation' : 'Show the calculation'}
       </button>
 
       {showMath && (
-        <>
+        <div id={breakdownId}>
           <CalculationBreakdown candidate={candidate} />
           <p className="text-[11px] text-white/35 mt-2">
             Price {priceAgeLabel(candidate.priceAgeDays)} ({candidate.priceObservationDate}) ·
             source: {candidate.priceSource === 'demo' ? 'demonstration data' : 'recorded by AgriLink'}
           </p>
-        </>
+        </div>
       )}
     </Card>
   );
@@ -323,11 +378,20 @@ function RecommendationForm() {
           <Button type="submit" isLoading={isSubmitting}>
             {isSubmitting ? 'Calculating…' : 'Where should I sell?'}
           </Button>
+          {/* Announced to screen readers only — the visible spinner in the
+              button conveys this to sighted users. */}
+          <span className="sr-only" role="status" aria-live="polite">
+            {isSubmitting ? 'Calculating your recommendation, please wait.' : ''}
+          </span>
         </form>
       </Card>
 
+      {/* Phase 20 accessibility: results arrive asynchronously after a
+          button press, which a screen reader would otherwise not announce
+          at all. aria-live="polite" announces the outcome once rendered
+          without interrupting whatever the user is currently reading. */}
       {result && (
-        <div className="space-y-3">
+        <div className="space-y-3" role="region" aria-live="polite" aria-label="Recommendation results">
           <p className="text-xs text-white/50 text-center">
             {result.quantityKg} kg of {result.cropName} from {result.farm.name} (
             {result.farm.zone})
@@ -342,11 +406,24 @@ function RecommendationForm() {
             </Alert>
           ))}
 
-          {result.candidates.length === 0 && (
-            <Alert variant="error">
-              No recommendation is available yet — none of the markets we track have both a
-              recorded price for this crop and a configured transport route from your zone.
-            </Alert>
+          {result.candidates.length === 0 && result.noResultReason && (
+            <Card>
+              <h3 className="text-white font-semibold">
+                {NO_RESULT_CONTENT[result.noResultReason].title}
+              </h3>
+              <p className="text-sm text-white/60 mt-1.5">
+                {NO_RESULT_CONTENT[result.noResultReason].body}
+              </p>
+              {NO_RESULT_CONTENT[result.noResultReason].action && (
+                <div className="mt-4">
+                  <Link href={NO_RESULT_CONTENT[result.noResultReason]!.action!.href}>
+                    <Button type="button">
+                      {NO_RESULT_CONTENT[result.noResultReason]!.action!.label}
+                    </Button>
+                  </Link>
+                </div>
+              )}
+            </Card>
           )}
 
           {result.candidates.map((c, i) => (

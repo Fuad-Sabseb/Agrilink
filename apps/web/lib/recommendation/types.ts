@@ -20,7 +20,16 @@ export interface RecommendationCandidate {
   isTiedWithBest: boolean;
 }
 
-export type ExclusionReason = 'no_price_data' | 'no_transport_route_configured';
+export type ExclusionReason =
+  | 'no_price_data'
+  | 'no_transport_route_configured'
+  | 'invalid_transport_route';
+
+export type NoResultReason =
+  | 'farm_location_missing'
+  | 'no_markets_priced_for_crop'
+  | 'no_routes_from_zone'
+  | 'no_overlap';
 
 export interface ExcludedMarket {
   market: Market;
@@ -41,4 +50,5 @@ export interface RecommendationResult {
   candidates: RecommendationCandidate[];
   excluded: ExcludedMarket[];
   warnings: DataQualityWarning[];
+  noResultReason: NoResultReason | null;
 }

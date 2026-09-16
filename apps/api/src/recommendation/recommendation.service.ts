@@ -56,12 +56,36 @@ export interface RecommendationCandidate {
   isTiedWithBest: boolean;
 }
 
-export type ExclusionReason = 'no_price_data' | 'no_transport_route_configured';
+export type ExclusionReason =
+  | 'no_price_data'
+  | 'no_transport_route_configured'
+  /**
+   * A route exists but its configured values can't produce a usable cost
+   * estimate (non-positive or non-finite distance/rate). Distinct from
+   * "no route configured" on purpose: the fix is different — an admin
+   * needs to correct bad data, not add missing data — and silently
+   * treating a broken route as absent would hide a configuration error
+   * that someone needs to know about.
+   */
+  | 'invalid_transport_route';
 
 export interface ExcludedMarket {
   market: Market;
   reason: ExclusionReason;
 }
+
+/**
+ * Why a recommendation has no ranked candidates. Phase 19: an empty
+ * `candidates` array has several genuinely different causes, and a farmer
+ * seeing "no recommendation" deserves to know which one applies — the
+ * remedy differs for each (set your farm's zone vs. wait for price data
+ * vs. ask an admin to configure routes).
+ */
+export type NoResultReason =
+  | 'farm_location_missing'
+  | 'no_markets_priced_for_crop'
+  | 'no_routes_from_zone'
+  | 'no_overlap';
 
 export type DataQualityWarning =
   | 'stale_prices_used'
@@ -84,6 +108,12 @@ export interface RecommendationResult {
    * from badge colors on individual cards.
    */
   warnings: DataQualityWarning[];
+  /**
+   * Set only when `candidates` is empty — explains which of the several
+   * possible causes applies, so the UI can give an actionable message
+   * instead of a generic "nothing found".
+   */
+  noResultReason: NoResultReason | null;
 }
 
 // Two candidates whose net revenue differs by less than this are treated
@@ -138,9 +168,28 @@ export class RecommendationService {
     const farm = await this.farmsService.findOneOwnedBy(farmId, farmerId);
     const crop = await this.cropsService.getActiveOrThrow(cropId);
 
+    // Phase 19 — missing location. Transport cost is looked up by the
+    // farm's zone, so a farm with a blank zone can't be routed from at
+    // all. Returning an empty result with a specific reason (rather than
+    // throwing, or returning a bare empty list) lets the UI tell the
+    // farmer exactly what to fix and link them to the form that fixes it.
+    const originZone = (farm.zone ?? '').trim();
+    if (!originZone) {
+      return {
+        farm: { id: farm.id, name: farm.name, zone: farm.zone },
+        cropName: crop.name,
+        quantityKg,
+        calculatedAt: new Date().toISOString(),
+        candidates: [],
+        excluded: [],
+        warnings: [],
+        noResultReason: 'farm_location_missing',
+      };
+    }
+
     const [prices, rules] = await Promise.all([
       this.marketPricesService.findLatestPerMarket(cropId),
-      this.transportCostRulesService.findActiveForZone(farm.zone),
+      this.transportCostRulesService.findActiveForZone(originZone),
     ]);
 
     const ruleByMarketId = new Map(rules.map((r) => [r.marketId, r]));
@@ -155,6 +204,29 @@ export class RecommendationService {
         continue;
       }
 
+      // Phase 19: a route row can exist but hold values that cannot
+      // produce a usable estimate. The admin DTOs validate on write, but
+      // rows can predate a validation rule, be seeded, or be edited
+      // directly in the database — so the engine re-checks rather than
+      // assuming. NaN would silently propagate through every downstream
+      // figure and render as "NaN ETB"; a non-positive distance or rate
+      // would produce a free or negative transport cost, which is worse
+      // than no answer because it looks authoritative.
+      const distanceKm = Number(rule.distanceKm);
+      const ratePerKgPerKm = Number(rule.ratePerKgPerKm);
+      const transitFeeCents = Number(rule.transitFeeCents);
+      if (
+        !Number.isFinite(distanceKm) ||
+        !Number.isFinite(ratePerKgPerKm) ||
+        !Number.isFinite(transitFeeCents) ||
+        distanceKm <= 0 ||
+        ratePerKgPerKm <= 0 ||
+        transitFeeCents < 0
+      ) {
+        excluded.push({ market: price.market, reason: 'invalid_transport_route' });
+        continue;
+      }
+
       // All monetary math in integer cents, rounding exactly once at the
       // point a real-world ETB amount is produced — same principle as
       // MarketPricesService, applied here because this calculation
@@ -162,10 +234,8 @@ export class RecommendationService {
       // rounding error would actually matter.
       const priceCents = Math.round(Number(price.pricePerKg) * 100);
       const grossRevenueCents = Math.round(priceCents * quantityKg);
-      const transportCostCents = Math.round(
-        Number(rule.distanceKm) * Number(rule.ratePerKgPerKm) * quantityKg * 100,
-      );
-      const totalCostCents = transportCostCents + rule.transitFeeCents;
+      const transportCostCents = Math.round(distanceKm * ratePerKgPerKm * quantityKg * 100);
+      const totalCostCents = transportCostCents + transitFeeCents;
       const netRevenueCents = grossRevenueCents - totalCostCents;
 
       candidates.push({
@@ -178,7 +248,7 @@ export class RecommendationService {
         distanceKm: rule.distanceKm,
         grossRevenue: (grossRevenueCents / 100).toFixed(2),
         transportCost: (transportCostCents / 100).toFixed(2),
-        transitFee: (rule.transitFeeCents / 100).toFixed(2),
+        transitFee: (transitFeeCents / 100).toFixed(2),
         totalCost: (totalCostCents / 100).toFixed(2),
         netRevenue: (netRevenueCents / 100).toFixed(2),
         netRevenuePerKg: (netRevenueCents / 100 / quantityKg).toFixed(2),
@@ -243,6 +313,23 @@ export class RecommendationService {
       }
     }
 
+    // Phase 19 — diagnose *why* there's nothing to recommend, so the UI
+    // can say something actionable. Order matters: check the broadest
+    // cause first, so a farmer is told "no prices exist for this crop
+    // anywhere" rather than the narrower, less useful "no overlap".
+    let noResultReason: NoResultReason | null = null;
+    if (candidates.length === 0) {
+      if (prices.length === 0) {
+        noResultReason = 'no_markets_priced_for_crop';
+      } else if (rules.length === 0) {
+        noResultReason = 'no_routes_from_zone';
+      } else {
+        // Both prices and routes exist from this zone, but no single
+        // market has both (or every overlapping route was invalid).
+        noResultReason = 'no_overlap';
+      }
+    }
+
     return {
       farm: { id: farm.id, name: farm.name, zone: farm.zone },
       cropName: crop.name,
@@ -251,6 +338,7 @@ export class RecommendationService {
       candidates,
       excluded,
       warnings,
+      noResultReason,
     };
   }
 }

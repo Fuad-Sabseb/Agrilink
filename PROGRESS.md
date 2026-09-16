@@ -1191,3 +1191,129 @@ recording honestly:**
   breakdown, contrast verification — is Phase 20's job.
 
 **Next phase:** 19 — Recommendation Edge Cases.
+
+---
+
+## DAY 10
+
+### PHASE 19 — Recommendation Edge Cases
+**STATUS:** COMPLETE
+
+The plan lists ten edge cases. Four were already handled by Phases 16–17 (missing prices, stale
+prices, no candidate markets, equal results, cost greater than revenue). This phase covers the
+remainder and hardens the rest.
+
+**Completed:**
+- **Missing farm location.** Transport cost is looked up by the farm's zone, so a farm with a
+  blank zone can't be routed from at all. Now short-circuits before querying anything and
+  returns a specific reason rather than an unexplained empty list. Whitespace-only zones are
+  treated as missing (not as a zone literally named `"   "`), and zones are trimmed before
+  lookup so `" Jimma Zone "` still matches a configured route.
+- **Invalid transport route** — a new, distinct exclusion reason. A route row can exist while
+  holding values that cannot produce a usable estimate: zero/negative distance or rate,
+  negative transit fee, or non-numeric data. The admin DTOs validate on write, but rows can
+  predate a validation rule, be seeded, or be edited directly in the database — so the engine
+  re-checks rather than trusting. This matters specifically because `NaN` would otherwise
+  propagate silently through every downstream figure and render as "NaN ETB", and a
+  non-positive distance would produce a free or negative transport cost — worse than no
+  answer, because it looks authoritative. Kept separate from `no_transport_route_configured`
+  on purpose: the remedy differs (fix bad data vs. add missing data).
+- **Diagnosed empty results** (`noResultReason`). An empty candidate list had four genuinely
+  different causes that previously all rendered as one generic message. Now distinguishes
+  `farm_location_missing`, `no_markets_priced_for_crop`, `no_routes_from_zone`, and
+  `no_overlap` — checked broadest-cause-first so a farmer is told "no prices exist for this
+  crop anywhere" rather than the narrower, less useful "no overlap".
+- **Farmer-readable validation messages** for invalid/zero quantity, replacing
+  class-validator's defaults (which leak the field name and say nothing actionable).
+
+**A real bug caught by reading the actual API response during live testing, not the code:**
+after writing the new validation messages, I checked what the API genuinely returns for a
+non-numeric quantity and found three messages, with the misleading one first — the frontend
+displays `message[0]`, so a farmer typing "abc" would have been told *"That quantity looks too
+large"*. Cause: `NaN` fails all three constraints at once, and class-validator returns messages
+in **reverse declaration order**. Fixed by declaring `@IsNumber` last so its message surfaces
+first, with the counter-intuitive ordering documented in the DTO so nobody "tidies" it back.
+Verified each bad input now maps to the right message: `abc` → "Enter the quantity as a
+number", `0` and `-5` → "Enter a quantity greater than zero", `99999999` → "That quantity looks
+too large".
+
+**Files changed:** `recommendation/recommendation.service.ts` (location guard, route
+validation, `noResultReason` diagnosis), `recommendation/dto/get-recommendation.dto.ts`
+(messages + decorator ordering fix).
+
+**API changes:** response gains `noResultReason`; `ExclusionReason` gains
+`invalid_transport_route`. Additive only.
+
+**Tests:** 16 new unit tests (35 in this suite): missing/whitespace/untrimmed zones, seven
+distinct invalid-route shapes via `it.each` (each asserting no `NaN` reaches the response),
+partial failure (one broken route among several still ranks the valid ones), all four
+no-result reasons plus the null case, and fractional quantities.
+
+---
+
+### PHASE 20 — Recommendation QA & Explainability
+**STATUS:** COMPLETE
+
+**Completed — actionable empty states.** Each `noResultReason` now renders a titled card
+explaining what happened and what to do, replacing a single generic error. `farm_location_missing`
+carries a direct "Set your farm location" button to the farm page — the one case where the
+farmer can fix it themselves in seconds. The others explain honestly that the missing piece is
+on AgriLink's side (no price data yet, no route configured) rather than implying farmer error.
+
+**Completed — accessibility pass** (Phase 20's explicit bullet, previously flagged as an open
+item on Day 9):
+- Results render inside `role="region"` with `aria-live="polite"`, so a screen reader announces
+  the outcome when it arrives asynchronously after the button press — previously it announced
+  nothing at all.
+- A visually-hidden `role="status"` announces "Calculating your recommendation, please wait"
+  during submission; the visible spinner already covers sighted users.
+- Four identical "Show the calculation" buttons were ambiguous when listed out of context by a
+  screen reader, so each now carries an `aria-label` naming its market, plus `aria-controls`
+  pointing at the breakdown region it toggles (with a stable per-market id).
+- Net revenue figures carry `aria-label`s that keep the number and its meaning together —
+  the visual layout splits them across two lines, which would otherwise be read as a bare
+  number.
+- Rank markers (`#1`) are `aria-hidden` with a screen-reader-only "Option 1: " prefix inside
+  the heading, so the rank is conveyed as part of the market's name rather than as a floating
+  token.
+- Verified Tailwind's `sr-only` utility is genuinely present in the compiled CSS rather than
+  assuming it — confirmed in the built stylesheet.
+
+**Files changed:** `apps/web/lib/recommendation/types.ts`,
+`apps/web/app/app/where-should-i-sell/page.tsx`.
+
+**Lint:** PASS (api + web). **Typecheck:** PASS. **Build:** PASS (api + web, 11 routes).
+
+**Verification performed this session:**
+1. Backend: typecheck, lint, all **91 unit tests**, build — all PASS.
+2. Frontend: `next lint`, `next build` — PASS; `sr-only` confirmed in compiled CSS.
+3. Live edge-case verification against real MySQL, including **deliberately corrupting a
+   transport route row directly in the database** (`distance_km = 0`) to prove the guard works
+   against real bad data rather than only against mocks: the broken route was correctly
+   excluded with `invalid_transport_route`, the other two markets still ranked normally, and
+   the response contained no `NaN` anywhere. Also verified `no_routes_from_zone` (farm in an
+   unconfigured zone), `farm_location_missing` (blank zone via direct DB edit), null
+   `noResultReason` on a normal result, and all four quantity-validation messages. **6/6
+   passed.**
+4. Full Day 1–10 regression across both live servers. **19/19 passed** — though three checks
+   initially failed with a 400 that turned out to be **my test script's fault, not the code's**:
+   I used `"name":"F"` for the farm, and the farm-name rule correctly requires at least 2
+   characters. The API was right; the test was wrong. Re-ran with a valid name and all three
+   passed.
+
+**Known issues:**
+- No headless browser in this sandbox — the accessibility work is implemented against WAI-ARIA
+  practice and verified in markup and compiled CSS, but **not tested with a real screen
+  reader**. That's the honest limit of what this environment can confirm, and a real
+  NVDA/VoiceOver pass is worth doing before pilot.
+- Contrast ratios were not formally measured against WCAG AA. The palette is high-contrast by
+  design (Day 1 design system) but "looks fine" is not a measurement; worth an audit in
+  Phase 35/36.
+- Tie tolerance (1 ETB) and close-call threshold (2%) remain documented judgment calls.
+- `no_overlap` is a genuine catch-all: it fires both when prices and routes exist for disjoint
+  market sets, and when every overlapping route happened to be invalid. The `excluded` list
+  disambiguates it in practice, but the reason code alone doesn't.
+
+**Next phase:** 21 — Buyer Profile. This closes out the recommendation engine (Phases 15–20)
+and the flagship "Where Should I Sell?" feature; the build now moves to the Buyer Marketplace
+module.

@@ -23,8 +23,8 @@ Status legend: ✅ done · 🔶 partial · ⬜ not started.
 | 8 | 16 | Recommendation Engine (Where Should I Sell?) | ✅ |
 | 9 | 17 | Recommendation API | ✅ |
 | 9 | 18 | Recommendation UI | ✅ |
-| 10 | 19 | Recommendation Edge Cases | ⬜ |
-| 10 | 20 | Recommendation QA & Explainability | ⬜ |
+| 10 | 19 | Recommendation Edge Cases | ✅ |
+| 10 | 20 | Recommendation QA & Explainability | ✅ |
 | 11 | 21 | Buyer Profile | ⬜ |
 | 11 | 22 | Buyer Demand | ⬜ |
 | 12 | 23 | Farmer/Buyer Matching | ⬜ |
