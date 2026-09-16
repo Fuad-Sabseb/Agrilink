@@ -9,7 +9,12 @@ import { marketsApi } from '../../../lib/markets/api-client';
 import { recommendationApi } from '../../../lib/recommendation/api-client';
 import type { Farm } from '../../../lib/farmers/types';
 import type { Crop } from '../../../lib/markets/types';
-import type { ExclusionReason, RecommendationResult } from '../../../lib/recommendation/types';
+import type {
+  DataQualityWarning,
+  ExclusionReason,
+  RecommendationCandidate,
+  RecommendationResult,
+} from '../../../lib/recommendation/types';
 import { Card } from '../../../components/ui/Card';
 import { Select } from '../../../components/ui/Select';
 import { Input } from '../../../components/ui/Input';
@@ -22,13 +27,59 @@ const EXCLUSION_LABELS: Record<ExclusionReason, string> = {
   no_transport_route_configured: 'No transport route configured from your zone to this market yet.',
 };
 
+// Plain-language equivalents of the API's machine-readable warnings. The
+// backend deliberately returns codes, not sentences, so wording can change
+// here (and be translated in Phase 33) without touching the engine.
+const WARNING_LABELS: Record<DataQualityWarning, string> = {
+  demo_prices_used:
+    'This result uses demonstration data, not real observed market prices. Do not make a selling decision based on it.',
+  stale_prices_used:
+    'Some prices used here are over a month old and may no longer reflect the real market. Check locally before acting.',
+  all_markets_are_loss:
+    'Every market shown would cost more to reach than the crop would earn at this quantity. Consider selling locally, or waiting for a better price.',
+  close_call:
+    'The top two markets are very close. Other factors — buyer reliability, road conditions, who is actually buying today — may matter more than this difference.',
+};
+
+function priceAgeLabel(days: number): string {
+  if (days === 0) return 'recorded today';
+  if (days === 1) return 'recorded yesterday';
+  return `recorded ${days} days ago`;
+}
+
+function CalculationBreakdown({ candidate }: { candidate: RecommendationCandidate }) {
+  return (
+    <dl className="mt-3 space-y-1.5 text-sm">
+      <Row
+        label="Gross revenue"
+        value={`${candidate.grossRevenue} ETB`}
+        sublabel={`at ${candidate.pricePerKg} ETB/kg`}
+      />
+      <Row label="Transport cost" value={`− ${candidate.transportCost} ETB`} muted
+        sublabel={`${candidate.distanceKm} km`} />
+      <Row label="Transit / logistics fee" value={`− ${candidate.transitFee} ETB`} muted />
+      <div className="border-t border-white/10 pt-1.5">
+        <Row
+          label="Estimated net revenue"
+          value={`${candidate.netRevenue} ETB`}
+          bold
+          negative={candidate.isLoss}
+          sublabel={`${candidate.netRevenuePerKg} ETB per kg`}
+        />
+      </div>
+    </dl>
+  );
+}
+
 function ResultCandidate({
   candidate,
   rank,
 }: {
-  candidate: RecommendationResult['candidates'][number];
+  candidate: RecommendationCandidate;
   rank: number;
 }) {
+  const [showMath, setShowMath] = useState(candidate.isRecommended);
+
   return (
     <Card
       className={
@@ -43,39 +94,69 @@ function ResultCandidate({
             {candidate.market.zone} · {candidate.distanceKm} km away
           </p>
         </div>
-        <FreshnessBadge freshness={candidate.priceFreshness} />
+        <div className="text-right">
+          <p
+            className={`text-lg font-bold ${
+              candidate.isLoss ? 'text-agrilink-error' : 'text-white'
+            }`}
+          >
+            {candidate.netRevenue} ETB
+          </p>
+          <p className="text-[11px] text-white/40">{candidate.netRevenuePerKg} ETB/kg net</p>
+        </div>
       </div>
 
-      {candidate.isRecommended && (
-        <div className="mt-2">
+      <div className="flex items-center gap-2 mt-2 flex-wrap">
+        {candidate.isRecommended && (
           <span className="inline-block text-[10px] font-bold tracking-wide text-agrilink-green-dark bg-agrilink-gold rounded-full px-3 py-1">
             BEST ESTIMATED NET RETURN
           </span>
-        </div>
-      )}
+        )}
+        {/* A tie on the top spot is stated plainly rather than hidden
+            behind an arbitrary sort order picking a "winner". */}
+        {candidate.isTiedWithBest && !candidate.isRecommended && (
+          <span className="inline-block text-[10px] font-semibold text-agrilink-gold border border-agrilink-gold/50 rounded-full px-3 py-1">
+            TIED WITH BEST
+          </span>
+        )}
+        <FreshnessBadge freshness={candidate.priceFreshness} />
+      </div>
+
       {candidate.isLoss && (
         <div className="mt-2">
           <Alert variant="error">
-            Estimated cost exceeds gross revenue at this market — you would lose money selling
-            here at this quantity.
+            Estimated cost exceeds what the crop would earn here — selling at this market
+            would lose money at this quantity.
           </Alert>
         </div>
       )}
 
-      <dl className="mt-3 space-y-1.5 text-sm">
-        <Row label="Price" value={`${candidate.pricePerKg} ETB/kg`} />
-        <Row label="Gross revenue" value={`${candidate.grossRevenue} ETB`} />
-        <Row label="Transport cost" value={`− ${candidate.transportCost} ETB`} muted />
-        <Row label="Transit / logistics fee" value={`− ${candidate.transitFee} ETB`} muted />
-        <div className="border-t border-white/10 pt-1.5">
-          <Row
-            label="Estimated net revenue"
-            value={`${candidate.netRevenue} ETB`}
-            bold
-            negative={candidate.isLoss}
-          />
-        </div>
-      </dl>
+      {candidate.advantageOverNext &&
+        Number(candidate.advantageOverNext) > 0 &&
+        candidate.isRecommended && (
+          <p className="text-xs text-white/50 mt-2">
+            {Number(candidate.advantageOverNext).toFixed(2)} ETB better than the next option.
+          </p>
+        )}
+
+      <button
+        type="button"
+        onClick={() => setShowMath((v) => !v)}
+        className="text-xs text-agrilink-gold mt-3"
+        aria-expanded={showMath}
+      >
+        {showMath ? 'Hide the calculation' : 'Show the calculation'}
+      </button>
+
+      {showMath && (
+        <>
+          <CalculationBreakdown candidate={candidate} />
+          <p className="text-[11px] text-white/35 mt-2">
+            Price {priceAgeLabel(candidate.priceAgeDays)} ({candidate.priceObservationDate}) ·
+            source: {candidate.priceSource === 'demo' ? 'demonstration data' : 'recorded by AgriLink'}
+          </p>
+        </>
+      )}
     </Card>
   );
 }
@@ -83,19 +164,24 @@ function ResultCandidate({
 function Row({
   label,
   value,
+  sublabel,
   muted,
   bold,
   negative,
 }: {
   label: string;
   value: string;
+  sublabel?: string;
   muted?: boolean;
   bold?: boolean;
   negative?: boolean;
 }) {
   return (
-    <div className="flex justify-between">
-      <dt className={muted ? 'text-white/40' : 'text-white/60'}>{label}</dt>
+    <div className="flex justify-between items-start">
+      <div>
+        <dt className={muted ? 'text-white/40' : 'text-white/60'}>{label}</dt>
+        {sublabel && <p className="text-[11px] text-white/30">{sublabel}</p>}
+      </div>
       <dd
         className={`${bold ? 'font-semibold' : ''} ${
           negative ? 'text-agrilink-error' : muted ? 'text-white/50' : 'text-white'
@@ -247,6 +333,15 @@ function RecommendationForm() {
             {result.farm.zone})
           </p>
 
+          {/* Result-level warnings come first: a farmer should know the
+              result is built on demo or stale data BEFORE reading the
+              numbers, not after. */}
+          {result.warnings.map((w) => (
+            <Alert key={w} variant="error">
+              {WARNING_LABELS[w]}
+            </Alert>
+          ))}
+
           {result.candidates.length === 0 && (
             <Alert variant="error">
               No recommendation is available yet — none of the markets we track have both a
@@ -271,6 +366,11 @@ function RecommendationForm() {
               </ul>
             </Card>
           )}
+
+          <p className="text-[11px] text-white/30 text-center">
+            Calculated {new Date(result.calculatedAt).toLocaleString()}. Estimates only —
+            actual costs and prices on the day may differ.
+          </p>
         </div>
       )}
     </div>

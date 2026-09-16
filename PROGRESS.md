@@ -1064,3 +1064,130 @@ Day 9 for what's added there specifically; this phase already ships a working, t
 Phase 17 is scoped in the original plan to add candidate-selection refinement and further
 explanation/source-timestamp detail on top of it).
 
+
+---
+
+## DAY 9
+
+### PHASE 17 — Recommendation API
+**STATUS:** COMPLETE
+
+Phase 16 shipped a working, tested recommendation API. Phase 17's job per the original plan
+("recommendation service, candidate selection, validation, ranking, explanation, source/
+timestamp information, tests") is hardening that API's *output contract* — specifically the
+explanation and source/timestamp bullets, which Phase 16 covered only partially.
+
+**Completed — six additions to the response contract, each solving a real interpretive gap:**
+- **Tie detection** (`isTiedWithBest`). Phase 16 sorted by net revenue and flagged the top
+  result as recommended — which, for two markets with genuinely identical economics, silently
+  implied one beat the other based on nothing but sort order. Now any candidate within 1 ETB
+  of the best is flagged as tied; exactly one is still marked `isRecommended` (the UI needs a
+  primary), but the tie is stated rather than hidden.
+- **Margin over runner-up** (`advantageOverNext`). Answers "is this recommendation meaningfully
+  better, or effectively a coin flip?" from the response itself, rather than requiring a farmer
+  to mentally subtract two five-digit numbers.
+- **Per-kg economics** (`netRevenuePerKg`). The headline net figure scales with quantity, which
+  makes markets hard to compare at a glance and impossible to carry mentally to a different
+  quantity. Per-kg normalizes both.
+- **Price age in days** (`priceAgeDays`). The freshness badge says *what category* a price falls
+  into; this says *how old it actually is*, which is the underlying fact a farmer can judge
+  for themselves.
+- **Calculation timestamp** (`calculatedAt`). Proposal rule 5's source/timestamp transparency
+  applied to the recommendation itself, not just to the individual prices feeding it.
+- **Result-level data-quality warnings** (`warnings[]`): `demo_prices_used`,
+  `stale_prices_used`, `all_markets_are_loss`, `close_call`. Deliberately machine-readable
+  codes, not sentences — so wording lives in the frontend and can be translated in Phase 33
+  without touching the engine. `close_call` deliberately suppresses itself when a tie is
+  already flagged, so the two signals don't double up on the same situation.
+
+**Two judgment calls, documented as such rather than presented as proposal-derived:** the tie
+tolerance (1 ETB — below which a "winner" is a rounding artifact, not a real difference) and
+the close-call threshold (2% of gross revenue — a real but thin margin where unmodeled factors
+like buyer reliability or road conditions plausibly outweigh the calculated difference). Both
+are isolated named constants, easy to tune once real usage informs them.
+
+**Files changed:** `recommendation/recommendation.service.ts` (all six additions + the two
+threshold constants).
+
+**API changes:** `GET /api/v1/recommendation/where-should-i-sell` response gains
+`calculatedAt`, `warnings[]`, and per-candidate `priceAgeDays`, `netRevenuePerKg`,
+`advantageOverNext`, `isTiedWithBest`. Purely additive — no existing field changed or removed.
+
+**Tests:** 11 new unit tests (19 total in this suite): tie detection both ways (identical
+economics flagged as tied; a clearly-better market correctly not flagged), margin calculation
+including `null` for the last-ranked candidate, per-kg math, all four warnings tested
+independently, `all_markets_are_loss` explicitly tested for its *negative* case too (does not
+fire when at least one market is profitable), the close-call/tie suppression interaction, and
+timestamp/age stamping. All 75 backend tests pass together.
+
+---
+
+### PHASE 18 — Recommendation UI
+**STATUS:** COMPLETE
+
+**Completed:**
+- **Expandable calculation breakdown per market** — "Show the calculation" reveals the full
+  arithmetic (gross revenue at the given price/kg → minus transport cost with its distance →
+  minus transit fee → net revenue, with per-kg alongside). Expanded by default on the
+  recommended market, collapsed on the rest: the flagship promise is explainability
+  (proposal rule 11, and §8's "so the farmer can verify the logic rather than simply trust a
+  black box"), but four fully-expanded breakdowns on a phone screen is not readable. Default-
+  expanding the one that matters is the honest compromise.
+- **Data-quality warnings surfaced above the results, not below.** A farmer should know a
+  result rests on demo or month-old data *before* reading the numbers, not after — so
+  `warnings[]` renders first, in plain language, not as a colour-coded hint.
+- **Ties stated explicitly** — a "TIED WITH BEST" badge on any co-leader, so the gold "BEST
+  ESTIMATED NET RETURN" badge on the primary never implies a decisiveness the data doesn't
+  support.
+- Net revenue and per-kg promoted to the card header (previously buried in the breakdown
+  list), margin over the next option shown on the recommended card, and price provenance
+  ("recorded 3 days ago (2026-09-13) · source: demonstration data") shown inside the
+  breakdown.
+- A closing calculation-timestamp and estimates-only caveat beneath the results.
+
+**Files changed:** `apps/web/lib/recommendation/types.ts` (Phase 17 fields),
+`apps/web/app/app/where-should-i-sell/page.tsx` (full rework of the results view).
+
+**Lint:** PASS (api + web). **Typecheck:** PASS. **Build:** PASS (api + web, 11 routes).
+
+**Verification performed this session:**
+1. Backend: typecheck, lint, all 75 unit tests, build — all PASS.
+2. Frontend: `next lint`, `next build` — PASS.
+3. Live API verification of every new Phase 17 field against real seeded data, confirming
+   `calculatedAt`, `warnings`, `priceAgeDays`, `netRevenuePerKg`, `advantageOverNext` and
+   `isTiedWithBest` are all present and correctly populated, and that `demo_prices_used` fires
+   for the demo seed data as it should.
+4. **A genuine top-spot tie, engineered against the live system** — created a fourth market
+   via the admin API with economics deliberately identical to the current leader (same price,
+   distance, rate, and fee), then confirmed the API returned both at exactly 128,030.00 ETB
+   with both flagged `isTiedWithBest` and exactly one marked as the primary recommendation.
+   Test data cleaned up afterward so it doesn't ship in the seeded state.
+5. Full Day 1–9 regression across both live servers: 8 web routes + 10 backend endpoints.
+   **18/18 passed**, zero unexpected errors in either log.
+
+**Two failures during verification, both in my test scripts rather than the code — worth
+recording honestly:**
+- The first end-to-end run failed entirely with the API refusing to boot. Cause: `.env` had
+  been deleted during Day 8's packaging step (secrets are intentionally stripped before
+  zipping). Notably, the API failed *loudly and specifically* — listing every missing variable
+  by name — which is exactly the fail-fast config validation built on Day 1 working as
+  designed, rather than a confusing downstream crash.
+- My first attempt at a live tie test engineered two markets that tied *with each other* at
+  ranks 3–4, then asserted `isTiedWithBest` would fire. It correctly didn't: the flag means
+  "tied with the best candidate," precisely as named and documented. Fixed the scenario to
+  create a tie at the top instead, which then passed. The implementation was right; my test's
+  premise was wrong.
+
+**Known issues:**
+- No headless browser in this sandbox — standing caveat since Day 3; the expandable breakdown
+  and warning banners are contract-verified and code-reviewed, not visually click-tested.
+- Tie tolerance (1 ETB) and close-call threshold (2%) are documented judgment calls, not
+  proposal-specified values.
+- Remaining edge cases named in the original plan for Phase 19 (missing/invalid location,
+  invalid route, zero-quantity presentation nuances) are that phase's scope — Phase 17/18
+  covered ranking ties, loss cases, stale/demo data, and both missing-data exclusion reasons.
+- Accessibility (Phase 20's explicit bullet) not yet audited: the expand/collapse control has
+  `aria-expanded`, but a full pass — focus order, screen-reader labelling of the numeric
+  breakdown, contrast verification — is Phase 20's job.
+
+**Next phase:** 19 — Recommendation Edge Cases.

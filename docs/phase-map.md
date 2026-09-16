@@ -21,8 +21,8 @@ Status legend: ✅ done · 🔶 partial · ⬜ not started.
 | 7 | 14 | Historical Prices & Trends | ✅ |
 | 8 | 15 | Transport Cost System | ✅ |
 | 8 | 16 | Recommendation Engine (Where Should I Sell?) | ✅ |
-| 9 | 17 | Recommendation API | ⬜ |
-| 9 | 18 | Recommendation UI | ⬜ |
+| 9 | 17 | Recommendation API | ✅ |
+| 9 | 18 | Recommendation UI | ✅ |
 | 10 | 19 | Recommendation Edge Cases | ⬜ |
 | 10 | 20 | Recommendation QA & Explainability | ⬜ |
 | 11 | 21 | Buyer Profile | ⬜ |
