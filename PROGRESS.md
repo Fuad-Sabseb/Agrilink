@@ -1317,3 +1317,124 @@ item on Day 9):
 **Next phase:** 21 — Buyer Profile. This closes out the recommendation engine (Phases 15–20)
 and the flagship "Where Should I Sell?" feature; the build now moves to the Buyer Marketplace
 module.
+
+---
+
+## DAY 11
+
+### PHASE 21 — Buyer Profile
+**STATUS:** COMPLETE
+
+**Completed:**
+- `BuyerProfile` entity, one-to-one with User, auto-created at registration when `role=buyer`
+  — mirroring the farmer flow, so a buyer never has to discover that a profile must exist
+  before it does.
+- **Multi-tier buyer model** (proposal §7.3's "multi-tier buyer visibility"): `LOCAL_COLLECTOR`,
+  `CITY_MERCHANT`, `COOPERATIVE`. This is a real product distinction, not a label — the
+  proposal's §7.4 argument is that collectors do genuine transport/market-access work that
+  isn't realistic to eliminate for farmers far from the city, and that the platform's job is to
+  make their fee transparent rather than route around them.
+- **Disclosed collector fee** (§7.4's "transparent, disclosed fee"), stored in integer basis
+  points to avoid float drift on a figure applied to real money, surfaced to farmers as a
+  percentage before they commit.
+- **Buyer verification** (§7.3), admin-only via `PATCH /admin/buyers/:id/verification`.
+- **Reliability signals** (§7.3's "track response time and no-show history"):
+  `completedDealsCount` / `noShowCount` columns, platform-maintained, with an on-time rate
+  computed on read rather than denormalised (so the two can never drift apart).
+
+**Three deliberate integrity decisions, each of which would be a real vulnerability if done
+the obvious way:**
+1. `UpdateBuyerProfileDto` has **no path at all** to `verificationStatus` or the reliability
+   counters — not a runtime check that strips them, but their simple absence from the DTO, so
+   the global whitelist validation rejects the attempt outright. A self-editable trust signal
+   is worse than none, because it still looks credible to the farmer relying on it. Verified
+   live: a buyer POSTing `{"verificationStatus":"verified"}` to their own profile gets a 400,
+   and their status remains `unverified`.
+2. **Changing tier withdraws VERIFIED status** (→ `PENDING`). Verification is granted on the
+   basis of being a particular kind of business; silently keeping the badge across a tier
+   change would let a buyer verified as a cooperative re-present themselves as a collector
+   while still wearing the badge a farmer is trusting. Only an existing *positive*
+   verification is withdrawn — there's nothing to take away from an unverified account.
+3. **A buyer with no history reports `onTimeRate: null`, not 100%.** A brand-new buyer is
+   *unproven*, not perfect; "100% reliable" for zero completed deals would actively mislead a
+   farmer deciding whether to wait for them — precisely the failure §7.3's reliability signals
+   exist to prevent. The UI renders this as "No trading history on AgriLink yet".
+
+---
+
+### PHASE 22 — Buyer Demand
+**STATUS:** COMPLETE
+
+**Completed:**
+- `BuyerDemand` entity matching proposal §10.3's data model exactly ("Buyer → Demand Posting
+  (crop, grade, quantity, location, offer price)"), with offer price in integer cents per the
+  established money convention and nullable because §7.3's flow explicitly allows posting a
+  need without naming a price (negotiation follows).
+- **A deliberate four-state status machine, not an `isActive` boolean** — because §7.3 is
+  specific that buyers should "signal real-time availability rather than posting a static,
+  one-off demand listing", given that farmers report finding a merchant who is *actually
+  buying on the day they need to sell* is one of the most time-consuming parts of the process.
+  `DRAFT` (prepare unseen) → `BUYING_NOW` (the live signal) → `PAUSED` ("still interested, not
+  buying today") → `CLOSED` (finished). Collapsing PAUSED into CLOSED would destroy exactly the
+  signal §7.3 asks for.
+- **Farmer-facing search returns `BUYING_NOW` only** — enforced in the query itself, not
+  filtered in the UI. Verified live end to end: a draft posting is invisible to farmer search,
+  going live makes it appear, and pausing it makes it vanish again.
+- Verified buyers are ordered first in search results — verification is the strongest trust
+  signal a farmer has for someone they've never dealt with, so it leads the ordering rather
+  than being a badge they have to scan for.
+- Buyer-side CRUD (`/buyers/me/demands`), with closing as its own explicit endpoint because
+  it's one-way, and closed demands refusing further edits (a withdrawn posting must not be
+  editable back into an active one a farmer could act on).
+- Ownership scoped through the buyer's own profile with the same
+  404-for-both-nonexistent-and-not-yours pattern used throughout this build.
+- Frontend: `/app/buyer/profile`, `/app/buyer/demands`, and the farmer-facing
+  `/app/marketplace` with crop/tier/verified-only filters.
+
+**Files changed:** `marketplace/` (entities, DTOs, two services, four controllers, module),
+`auth/auth.service.ts` + `auth/auth.module.ts` (buyer profile auto-creation),
+`app.module.ts`; frontend `lib/marketplace/`, `components/marketplace/BuyerBadges.tsx`,
+three new pages, `app/app/page.tsx` (real buyer links, roadmap updated).
+
+**Database changes:** `buyer_profiles`, `buyer_demands` (migration
+`BuyerProfilesAndDemands`), with CASCADE to buyer profile and RESTRICT on crop. Row counts on
+existing tables verified unchanged before/after the migration.
+
+**Tests:** 34 new (125 total, all passing) — 12 for `BuyerProfileService` (reliability
+including the null-not-100% case and the 66.7% rounding case, tier-change verification
+withdrawal in all three directions), 20 for `BuyerDemandService` (price cents conversion,
+status defaults and transitions, closed-demand edit refusal, the draft/paused invisibility
+rules, ownership indistinguishability, every search filter including asserting that
+`verifiedOnly` is *absent* when not requested), and 2 added to `AuthService` covering buyer
+profile creation and the transporter case creating neither profile.
+
+**Lint:** PASS (api + web). **Typecheck:** PASS. **Build:** PASS (api + web, 14 routes).
+
+**Verification performed this session:**
+1. Backend: typecheck, lint, all 125 unit tests, build — all PASS.
+2. Migration run against live MySQL; new tables confirmed, existing row counts unchanged.
+3. Live end-to-end covering the security-critical paths specifically: buyer self-verification
+   attempt rejected and status confirmed still unverified afterwards; admin verification
+   succeeding while a farmer attempting the same gets 403; tier change withdrawing
+   verification; the full draft → live → paused → live visibility cycle from the farmer's
+   side; `verifiedOnly=maybe` rejected as 400 rather than silently coerced to false; past
+   needed-by date rejected; farmer blocked from creating a demand. **14/14 passed.**
+4. Full Day 1–11 regression across both live servers, 11 web routes + 9 API endpoints.
+   **20/20 passed**, zero unexpected errors in either log.
+
+**Known issues:**
+- No headless browser — standing caveat since Day 3.
+- **Reliability counters are structurally present but always zero**, because nothing increments
+  them until the transaction lifecycle exists (Phases 26–30). This is deliberate: the columns
+  and the null-vs-zero display logic needed to exist now so the buyer-facing surfaces are
+  designed around them from the start rather than retrofitted. Flagging it plainly so the
+  zeroes aren't mistaken for a bug.
+- **No farmer→buyer contact mechanism yet.** §7.3's "in-app negotiation/agreement flow" is
+  Phase 23–24 scope. The marketplace card says so explicitly rather than showing a
+  non-functional "Contact buyer" button — this build does not ship fake controls.
+- No admin UI for buyer verification (API only) — consistent with the established pattern;
+  admin screens are Phase 32.
+- Buyer demand has no automatic matching against farmer crop records yet — that's Phase 23,
+  and the dashboard roadmap now names it as such.
+
+**Next phase:** 23 — Farmer/Buyer Matching.

@@ -7,6 +7,7 @@ describe('AuthService', () => {
   let passwordService: any;
   let refreshTokensService: any;
   let farmerProfileService: any;
+  let buyerProfileService: any;
   let jwtService: any;
   let configService: any;
   let authService: AuthService;
@@ -37,6 +38,7 @@ describe('AuthService', () => {
       revoke: jest.fn().mockResolvedValue(undefined),
       revokeByRawToken: jest.fn().mockResolvedValue(undefined),
     };
+    buyerProfileService = { createEmptyProfile: jest.fn().mockResolvedValue(undefined) };
     farmerProfileService = {
       createEmptyProfile: jest.fn().mockResolvedValue(undefined),
     };
@@ -51,6 +53,7 @@ describe('AuthService', () => {
       passwordService,
       refreshTokensService,
       farmerProfileService,
+      buyerProfileService,
       jwtService,
       configService,
     );
@@ -151,6 +154,38 @@ describe('AuthService', () => {
         role: UserRole.BUYER,
       } as any);
 
+      expect(farmerProfileService.createEmptyProfile).not.toHaveBeenCalled();
+    });
+
+    it('creates an empty buyer profile when registering as a buyer', async () => {
+      usersService.findByPhoneNumber.mockResolvedValue(null);
+      usersService.create.mockResolvedValue({ ...baseUser, role: UserRole.BUYER });
+
+      await authService.register({
+        phoneNumber: baseUser.phoneNumber,
+        fullName: baseUser.fullName,
+        password: 'plaintext-password',
+        role: UserRole.BUYER,
+      } as any);
+
+      expect(buyerProfileService.createEmptyProfile).toHaveBeenCalledWith(baseUser.id);
+      // Registering as a buyer must not also create a farmer profile —
+      // the two are mutually exclusive by role.
+      expect(farmerProfileService.createEmptyProfile).not.toHaveBeenCalled();
+    });
+
+    it('creates neither profile when registering as a transporter (Phase 25 builds that one)', async () => {
+      usersService.findByPhoneNumber.mockResolvedValue(null);
+      usersService.create.mockResolvedValue({ ...baseUser, role: UserRole.TRANSPORTER });
+
+      await authService.register({
+        phoneNumber: baseUser.phoneNumber,
+        fullName: baseUser.fullName,
+        password: 'plaintext-password',
+        role: UserRole.TRANSPORTER,
+      } as any);
+
+      expect(buyerProfileService.createEmptyProfile).not.toHaveBeenCalled();
       expect(farmerProfileService.createEmptyProfile).not.toHaveBeenCalled();
     });
   });

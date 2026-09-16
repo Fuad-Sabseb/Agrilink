@@ -12,6 +12,7 @@ import { CropsModule } from './crops/crops.module';
 import { MarketsModule } from './markets/markets.module';
 import { LogisticsModule } from './logistics/logistics.module';
 import { RecommendationModule } from './recommendation/recommendation.module';
+import { MarketplaceModule } from './marketplace/marketplace.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { RolesGuard } from './auth/guards/roles.guard';
 
@@ -34,6 +35,7 @@ import { RolesGuard } from './auth/guards/roles.guard';
     MarketsModule,
     LogisticsModule,
     RecommendationModule,
+    MarketplaceModule,
     // Marketplace, Transactions, Notifications, Admin modules are added in
     // their respective phases (Day 9 onward) — intentionally not stubbed
     // empty here, so the module list always reflects what's actually

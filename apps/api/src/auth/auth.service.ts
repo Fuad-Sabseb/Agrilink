@@ -11,6 +11,7 @@ import { UsersService } from '../users/users.service';
 import { UserRole } from '../users/entities/user-role.enum';
 import { toPublicUser, PublicUser } from '../users/user.mapper';
 import { FarmerProfileService } from '../farmers/farmer-profile.service';
+import { BuyerProfileService } from '../marketplace/buyer-profile.service';
 import { PasswordService } from './password.service';
 import { RefreshTokensService } from './refresh-tokens.service';
 import { RegisterDto } from './dto/register.dto';
@@ -36,6 +37,7 @@ export class AuthService {
     private readonly passwordService: PasswordService,
     private readonly refreshTokensService: RefreshTokensService,
     private readonly farmerProfileService: FarmerProfileService,
+    private readonly buyerProfileService: BuyerProfileService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
   ) {}
@@ -63,12 +65,13 @@ export class AuthService {
       preferredLanguage: dto.preferredLanguage,
     });
 
-    // A farmer profile always exists from the moment of registration — see
-    // FarmerProfileService.createEmptyProfile's doc comment for why. Only
-    // farmers get one; buyers/transporters have their own profile modules
-    // in later phases (21, 25).
+    // A role-specific profile always exists from the moment of
+    // registration — see FarmerProfileService.createEmptyProfile's doc
+    // comment for why. Transporters get theirs in Phase 25.
     if (user.role === UserRole.FARMER) {
       await this.farmerProfileService.createEmptyProfile(user.id);
+    } else if (user.role === UserRole.BUYER) {
+      await this.buyerProfileService.createEmptyProfile(user.id);
     }
 
     return this.issueTokensFor(user.id, user.role, toPublicUser(user));

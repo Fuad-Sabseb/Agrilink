@@ -30,12 +30,12 @@ const LANGUAGE_LABELS: Record<string, string> = {
 // buttons (proposal rule: no pages that only look functional).
 const ROLE_ROADMAP: Record<string, { title: string; phase: string }[]> = {
   farmer: [
-    { title: 'Buyer marketplace', phase: 'Phase 21–24' },
+    { title: 'Automatic buyer matching', phase: 'Phase 23–24' },
     { title: 'Transport requests & shipments', phase: 'Phase 25–28' },
   ],
   buyer: [
-    { title: 'Buyer profile & verification', phase: 'Phase 21' },
-    { title: 'Post demand, find matching farmers', phase: 'Phase 22–24' },
+    { title: 'Automatic farmer matching', phase: 'Phase 23–24' },
+    { title: 'Transport & shipments', phase: 'Phase 25–28' },
     { title: 'Transactions', phase: 'Phase 29–30' },
   ],
   transporter: [
@@ -183,6 +183,12 @@ function FarmerDashboardView() {
               <span className="text-white/40">→</span>
             </div>
           </Link>
+          <Link href="/app/marketplace">
+            <div className="flex items-center justify-between text-sm rounded-2xl bg-white/[0.06] hover:bg-white/[0.1] px-4 py-3 transition-colors">
+              <span className="text-white font-medium">Buyers looking to buy</span>
+              <span className="text-white/40">→</span>
+            </div>
+          </Link>
         </div>
       </Card>
     </>
@@ -230,12 +236,36 @@ function AppHome() {
             </Card>
             <Card>
               <h2 className="text-white font-semibold mb-3">Manage</h2>
-              <Link href="/app/market-prices">
-                <div className="flex items-center justify-between text-sm rounded-2xl bg-white/[0.06] hover:bg-white/[0.1] px-4 py-3 transition-colors">
-                  <span className="text-white font-medium">Market prices</span>
-                  <span className="text-white/40">→</span>
-                </div>
-              </Link>
+              <div className="space-y-2">
+                {user.role === 'buyer' && (
+                  <>
+                    <Link href="/app/buyer/profile">
+                      <div className="flex items-center justify-between text-sm rounded-2xl bg-white/[0.06] hover:bg-white/[0.1] px-4 py-3 transition-colors">
+                        <span className="text-white font-medium">Your buyer profile</span>
+                        <span className="text-white/40">→</span>
+                      </div>
+                    </Link>
+                    <Link href="/app/buyer/demands">
+                      <div className="flex items-center justify-between text-sm rounded-2xl bg-white/[0.06] hover:bg-white/[0.1] px-4 py-3 transition-colors">
+                        <span className="text-white font-medium">What you&apos;re buying</span>
+                        <span className="text-white/40">→</span>
+                      </div>
+                    </Link>
+                  </>
+                )}
+                <Link href="/app/marketplace">
+                  <div className="flex items-center justify-between text-sm rounded-2xl bg-white/[0.06] hover:bg-white/[0.1] px-4 py-3 transition-colors">
+                    <span className="text-white font-medium">Buyers looking to buy</span>
+                    <span className="text-white/40">→</span>
+                  </div>
+                </Link>
+                <Link href="/app/market-prices">
+                  <div className="flex items-center justify-between text-sm rounded-2xl bg-white/[0.06] hover:bg-white/[0.1] px-4 py-3 transition-colors">
+                    <span className="text-white font-medium">Market prices</span>
+                    <span className="text-white/40">→</span>
+                  </div>
+                </Link>
+              </div>
             </Card>
           </>
         )}

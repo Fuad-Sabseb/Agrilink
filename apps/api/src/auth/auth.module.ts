@@ -4,6 +4,7 @@ import { PassportModule } from '@nestjs/passport';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { UsersModule } from '../users/users.module';
 import { FarmersModule } from '../farmers/farmers.module';
+import { MarketplaceModule } from '../marketplace/marketplace.module';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
@@ -15,6 +16,7 @@ import { JwtStrategy } from './strategies/jwt.strategy';
   imports: [
     UsersModule,
     FarmersModule,
+    MarketplaceModule,
     PassportModule,
     JwtModule.register({}), // secrets are passed per sign/verify call — see AuthService
     TypeOrmModule.forFeature([RefreshToken]),
