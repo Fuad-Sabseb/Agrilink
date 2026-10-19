@@ -1,0 +1,28 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * AgriLink ships one theme (dark, agricultural green) for the MVP — no
+ * light/dark toggle yet. LaoAgroLink's reference screens have a theme
+ * toggle; building one now with no second theme behind it would be a
+ * decorative control that does nothing, which the proposal explicitly
+ * warns against ("no fake buttons"). Revisit if/when a light theme is
+ * actually designed.
+ */
+:root {
+  --background: #0e2a1c;
+  --foreground: #ffffff;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
