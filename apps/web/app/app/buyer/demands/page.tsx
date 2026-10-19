@@ -25,10 +25,20 @@ const STATUS_DISPLAY: Record<DemandStatus, { label: string; className: string; h
     className: 'bg-agrilink-success/20 text-agrilink-success',
     help: 'Live — farmers searching for this crop can see and contact you.',
   },
+  active: {
+    label: 'ACTIVE',
+    className: 'bg-blue-500/20 text-blue-300',
+    help: 'Scheduled and visible to farmers.',
+  },
   paused: {
     label: 'PAUSED',
     className: 'bg-agrilink-warning/20 text-agrilink-warning',
     help: 'Hidden from farmers, but kept so you can resume it.',
+  },
+  fulfilled: {
+    label: 'FULFILLED',
+    className: 'bg-emerald-500/20 text-emerald-300',
+    help: 'Target quantity fulfilled.',
   },
   closed: {
     label: 'CLOSED',
