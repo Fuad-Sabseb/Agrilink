@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../services/session_service.dart';
+import '../../core/services/session_service.dart';
 import '../../routes/app_routes.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -37,6 +37,9 @@ class _SplashScreenState extends State<SplashScreen> {
             return;
           case 'transporter':
             Navigator.pushReplacementNamed(context, AppRoutes.transporterDashboard);
+            return;
+          case 'bureau_officer':
+            Navigator.pushReplacementNamed(context, AppRoutes.bureauDashboard);
             return;
         }
       }

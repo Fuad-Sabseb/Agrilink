@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import '../../services/session_service.dart';
-import '../../services/produce_service.dart';
+import '../../core/theme/colors.dart';
+import '../../core/services/session_service.dart';
+import '../../core/services/produce_service.dart';
 import '../../models/produce_model.dart';
 import '../../widgets/produce_card.dart';
 import 'edit_produce_screen.dart';
@@ -14,41 +15,24 @@ class MyProduceScreen extends StatelessWidget {
     final sessionService = SessionService();
     final produceService = ProduceService();
 
+    final bool boxesOpen = Hive.isBoxOpen('produce');
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('My Produce'),
       ),
-      body: ValueListenableBuilder<Box<ProduceModel>>(
-        valueListenable: Hive.box<ProduceModel>('produce').listenable(),
-        builder: (context, box, _) {
-          final userId = sessionService.currentUserId;
-          final produceList = box.values.where((p) => p.farmerId == userId).toList()
-            ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      body: !boxesOpen
+          ? _buildEmptyState()
+          : ValueListenableBuilder<Box<ProduceModel>>(
+              valueListenable: Hive.box<ProduceModel>('produce').listenable(),
+              builder: (context, box, _) {
+                final userId = sessionService.currentUserId;
+                final produceList = box.values.where((p) => p.farmerId == userId).toList()
+                  ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
-          if (produceList.isEmpty) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(32.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.inventory_2_outlined, size: 80, color: Colors.grey.shade400),
-                    const SizedBox(height: 16),
-                    Text(
-                      'No Produce Listed',
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.grey.shade700),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Tap the + button to start listing your crops.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.grey.shade500),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }
+                if (produceList.isEmpty) {
+                  return _buildEmptyState();
+                }
 
           return ListView.builder(
             padding: const EdgeInsets.all(16.0),
@@ -70,7 +54,7 @@ class MyProduceScreen extends StatelessWidget {
                       actions: [
                         TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
                         ElevatedButton(
-                          style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                          style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
                           onPressed: () => Navigator.pop(ctx, true),
                           child: const Text('Delete', style: TextStyle(color: Colors.white)),
                         ),
@@ -90,6 +74,27 @@ class MyProduceScreen extends StatelessWidget {
             },
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.inventory_2_outlined, size: 64, color: AppColors.disabled),
+          const SizedBox(height: 16),
+          const Text(
+            'No produce listed yet',
+            style: TextStyle(fontSize: 18, color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Add your produce from the Add tab.',
+            style: TextStyle(color: AppColors.textTertiary),
+          ),
+        ],
       ),
     );
   }

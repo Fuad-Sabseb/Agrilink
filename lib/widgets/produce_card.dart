@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/produce_model.dart';
 import 'package:intl/intl.dart';
+import '../core/theme/colors.dart';
 
 class ProduceCard extends StatelessWidget {
   final ProduceModel produce;
@@ -19,24 +20,28 @@ class ProduceCard extends StatelessWidget {
   Color _getStatusColor() {
     switch (produce.status.toLowerCase()) {
       case 'available':
-        return Colors.green;
+        return AppColors.primary;
       case 'reserved':
-        return Colors.orange;
+        return AppColors.accent;
       case 'sold':
-        return Colors.red;
+        return AppColors.textSecondary;
       default:
-        return Colors.grey;
+        return AppColors.disabled;
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final currencyFormat = NumberFormat.currency(symbol: 'UGX ', decimalDigits: 0);
+    final currencyFormat = NumberFormat.currency(symbol: 'ETB ', decimalDigits: 0);
 
     return Card(
-      elevation: 2,
+      elevation: 1.5,
       margin: const EdgeInsets.only(bottom: 16),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      color: AppColors.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: AppColors.border.withValues(alpha: 0.6)),
+      ),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
@@ -50,15 +55,16 @@ class ProduceCard extends StatelessWidget {
                 children: [
                   Text(
                     produce.cropName,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
                     ),
                   ),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: _getStatusColor().withValues(alpha: 0.1),
+                      color: _getStatusColor().withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(color: _getStatusColor()),
                     ),
@@ -76,7 +82,7 @@ class ProduceCard extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 produce.description,
-                style: TextStyle(color: Colors.grey.shade600),
+                style: TextStyle(color: AppColors.textSecondary),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -97,21 +103,21 @@ class ProduceCard extends StatelessWidget {
                 ],
               ),
               if (onEdit != null || onDelete != null) ...[
-                const Divider(height: 24),
+                Divider(height: 24, color: AppColors.border),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
                     if (onEdit != null)
                       TextButton.icon(
                         onPressed: onEdit,
-                        icon: const Icon(Icons.edit_outlined, size: 18),
-                        label: const Text('Edit'),
+                        icon: Icon(Icons.edit_outlined, size: 18, color: AppColors.primary),
+                        label: Text('Edit', style: TextStyle(color: AppColors.primary)),
                       ),
                     if (onDelete != null)
                       TextButton.icon(
                         onPressed: onDelete,
-                        icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red),
-                        label: const Text('Delete', style: TextStyle(color: Colors.red)),
+                        icon: Icon(Icons.delete_outline, size: 18, color: AppColors.error),
+                        label: Text('Delete', style: TextStyle(color: AppColors.error)),
                       ),
                   ],
                 ),
@@ -126,18 +132,18 @@ class ProduceCard extends StatelessWidget {
   Widget _buildInfoColumn(String label, String value, IconData icon) {
     return Row(
       children: [
-        Icon(icon, size: 20, color: Colors.grey),
+        Icon(icon, size: 20, color: AppColors.secondary),
         const SizedBox(width: 8),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               label,
-              style: const TextStyle(fontSize: 12, color: Colors.grey),
+              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
             ),
             Text(
               value,
-              style: const TextStyle(fontWeight: FontWeight.bold),
+              style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary),
             ),
           ],
         ),

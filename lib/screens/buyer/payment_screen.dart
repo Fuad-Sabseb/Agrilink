@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:hive/hive.dart';
+import '../../core/theme/colors.dart';
 import '../../models/order_model.dart';
-import '../../services/payment_service.dart';
+import '../../core/services/payment_service.dart';
 
 class PaymentScreen extends StatefulWidget {
   const PaymentScreen({super.key});
@@ -13,51 +15,52 @@ class PaymentScreen extends StatefulWidget {
 class _PaymentScreenState extends State<PaymentScreen> {
   final _paymentService = PaymentService();
   
-  String _selectedMethod = 'MTN MoMo';
+  String _selectedMethod = 'Telebirr';
   bool _isProcessing = false;
 
   @override
   Widget build(BuildContext context) {
     final order = ModalRoute.of(context)!.settings.arguments as OrderModel;
-    final currencyFormat = NumberFormat.currency(symbol: 'UGX ', decimalDigits: 0);
+    final currencyFormat = NumberFormat.currency(symbol: 'ETB ', decimalDigits: 0);
 
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(title: const Text('Make Payment')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Icon(Icons.payment, size: 64, color: Colors.grey),
+            Icon(Icons.payment, size: 64, color: AppColors.secondary),
             const SizedBox(height: 24),
             Text(
               'Total Amount Due',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
+              style: TextStyle(fontSize: 16, color: AppColors.textSecondary),
             ),
             const SizedBox(height: 8),
             Text(
               currencyFormat.format(order.totalPrice),
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+              style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: AppColors.primary),
             ),
             const SizedBox(height: 48),
-            const Text(
+            Text(
               'Select Payment Method',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
             ),
             const SizedBox(height: 16),
-            _buildPaymentMethodTile('MTN MoMo', Icons.phone_android),
-            _buildPaymentMethodTile('Airtel Money', Icons.phone_android),
+            _buildPaymentMethodTile('Telebirr', Icons.phone_android),
+            _buildPaymentMethodTile('CBE Birr', Icons.phone_android),
             _buildPaymentMethodTile('Bank Transfer', Icons.account_balance),
-            _buildPaymentMethodTile('Cash', Icons.money),
+            _buildPaymentMethodTile('Cash on Delivery', Icons.money),
             const SizedBox(height: 24),
-            if (_selectedMethod == 'MTN MoMo' || _selectedMethod == 'Airtel Money')
+            if (_selectedMethod == 'Telebirr' || _selectedMethod == 'CBE Birr')
               Padding(
                 padding: const EdgeInsets.only(bottom: 24.0),
                 child: TextField(
                   decoration: InputDecoration(
-                    labelText: '${_selectedMethod} Number',
+                    labelText: '$_selectedMethod Number',
                     border: const OutlineInputBorder(),
                     prefixIcon: const Icon(Icons.phone),
                   ),
@@ -104,16 +107,37 @@ class _PaymentScreenState extends State<PaymentScreen> {
                         method: _selectedMethod.toLowerCase().replaceAll(' ', '_'),
                       );
 
+                      // Update order in Hive persistence
+                      try {
+                        if (Hive.isBoxOpen('orders')) {
+                          final orderBox = Hive.box<OrderModel>('orders');
+                          final existingOrder = orderBox.get(order.id) ?? order;
+                          final updatedOrder = existingOrder.copyWith(
+                            status: 'confirmed',
+                            paymentStatus: 'paid',
+                            paymentMethod: _selectedMethod.toLowerCase().replaceAll(' ', '_'),
+                            confirmedAt: DateTime.now(),
+                            updatedAt: DateTime.now(),
+                          );
+                          await orderBox.put(order.id, updatedOrder);
+                        }
+                      } catch (_) {
+                        // In case box is not opened or running in test mode
+                      }
+
                       if (context.mounted) {
                         Navigator.pop(context);
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Payment Successful!')),
+                          SnackBar(
+                            content: const Text('Payment Successful! Order Confirmed.'),
+                            backgroundColor: AppColors.success,
+                          ),
                         );
                       }
                     },
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.all(16),
-                backgroundColor: Theme.of(context).colorScheme.primary,
+                backgroundColor: AppColors.primary,
               ),
               child: _isProcessing
                   ? const CircularProgressIndicator(color: Colors.white)
@@ -127,7 +151,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
   Widget _buildPaymentMethodTile(String title, IconData fallbackIcon) {
     return RadioListTile<String>(
-      title: Text(title),
+      title: Text(title, style: TextStyle(color: AppColors.textPrimary)),
       value: title,
       groupValue: _selectedMethod,
       onChanged: (String? value) {
@@ -137,8 +161,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
           });
         }
       },
-      secondary: Icon(fallbackIcon, color: Theme.of(context).colorScheme.primary),
-      activeColor: Theme.of(context).colorScheme.primary,
+      secondary: Icon(fallbackIcon, color: AppColors.secondary),
+      activeColor: AppColors.primary,
       contentPadding: EdgeInsets.zero,
     );
   }

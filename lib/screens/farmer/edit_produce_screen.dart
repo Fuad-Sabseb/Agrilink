@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import '../../core/theme/colors.dart';
 import '../../models/produce_model.dart';
-import '../../services/produce_service.dart';
+import '../../core/services/produce_service.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_text_field.dart';
 
@@ -57,12 +58,17 @@ class _EditProduceScreenState extends State<EditProduceScreen> {
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Produce updated successfully!'), backgroundColor: Colors.green),
+        SnackBar(
+          content: const Text('Produce updated successfully!'),
+          backgroundColor: AppColors.success,
+        ),
       );
       Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error),
+      );
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -71,6 +77,7 @@ class _EditProduceScreenState extends State<EditProduceScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(title: const Text('Edit Produce')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
@@ -131,9 +138,12 @@ class _EditProduceScreenState extends State<EditProduceScreen> {
                 decoration: InputDecoration(
                   labelText: 'Description',
                   alignLabelWithHint: true,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: AppColors.border),
+                  ),
                   filled: true,
-                  fillColor: Colors.grey.shade50,
+                  fillColor: AppColors.surface,
                 ),
                 validator: (v) => v!.isEmpty ? 'Required' : null,
               ),

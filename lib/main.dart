@@ -1,120 +1,403 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:provider/provider.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-
-import 'models/user_model.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'core/theme/theme.dart';
+import 'core/localization/app_localizations.dart';
+import 'core/providers/auth_provider.dart';
+import 'core/providers/profile_provider.dart';
+import 'core/providers/produce_provider.dart';
+import 'core/providers/order_provider.dart';
+import 'core/providers/transport_provider.dart';
+import 'core/providers/notification_provider.dart';
+import 'core/providers/location_provider.dart';
+import 'core/providers/farmer_provider.dart';
+import 'core/providers/buyer_provider.dart';
+import 'core/providers/cart_provider.dart';
+import 'core/providers/favorites_provider.dart';
+import 'core/providers/inspection_provider.dart'; // Phase 8
+import 'core/providers/theme_provider.dart'; // Phase 9
+import 'core/providers/locale_provider.dart'; // Phase 9
+import 'core/providers/preferences_provider.dart'; // Phase 9
+import 'package:shared_preferences/shared_preferences.dart';
+import 'core/services/produce_service.dart';
+import 'core/services/order_service.dart';
+import 'core/services/transport_service.dart';
+import 'core/services/notification_service.dart';
+import 'core/services/location_service.dart';
+import 'core/services/background_location_service.dart';
+import 'core/models/farm_location.dart';
+import 'core/models/transport_trip_tracking.dart';
+import 'core/models/notification_rate_limit.dart';
+import 'core/models/inspection_model.dart'; // Phase 8
+import 'core/models/inspection_operation_model.dart'; // Phase 8
+import 'core/models/transport_request_model.dart';
+import 'core/models/trip_model.dart' hide TripStatusAdapter;
+import 'core/models/crop_plot_model.dart';
 import 'models/produce_model.dart';
 import 'models/order_model.dart';
 import 'models/payment_model.dart';
 import 'models/logistics_model.dart';
-
+import 'models/user_model.dart';
+import 'core/models/cart_item.dart';
+import 'core/models/notification_model.dart';
 import 'routes/app_routes.dart';
+import 'screens/auth/login_screen.dart';
+import 'screens/auth/onboarding_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // Initialize Hive
+
+  // Initialize Firebase (Phase 3) - Skip on web without config
+  if (!kIsWeb) {
+    try {
+      await Firebase.initializeApp();
+      debugPrint('Firebase initialized successfully');
+    } catch (e) {
+      debugPrint('Firebase initialization error: $e');
+      // Continue app startup even if Firebase fails
+    }
+  } else {
+    debugPrint('Firebase initialization skipped on web (requires firebase_options.dart)');
+  }
+
+  // Initialize SharedPreferences for settings
+  final prefs = await SharedPreferences.getInstance();
+
+  // Initialize Hive for local storage
   await Hive.initFlutter();
-  
-  // Register Adapters
-  Hive.registerAdapter(UserModelAdapter());
-  Hive.registerAdapter(ProduceModelAdapter());
-  Hive.registerAdapter(OrderModelAdapter());
-  Hive.registerAdapter(PaymentModelAdapter());
-  Hive.registerAdapter(LogisticsModelAdapter());
-  
-  // Open Boxes
-  await Hive.openBox<UserModel>('users');
-  await Hive.openBox<ProduceModel>('produce');
-  await Hive.openBox<OrderModel>('orders');
-  await Hive.openBox<PaymentModel>('payments');
-  await Hive.openBox<LogisticsModel>('logistics');
-  await Hive.openBox('session');
-  
-  runApp(const AgroLinkApp());
+
+  // Helper to safely register Hive adapters without crashing on duplicate typeIds
+  void safeRegisterAdapter<T>(TypeAdapter<T> adapter) {
+    if (!Hive.isAdapterRegistered(adapter.typeId)) {
+      try {
+        Hive.registerAdapter(adapter);
+      } catch (e) {
+        debugPrint('Hive adapter registration error for ${adapter.runtimeType}: $e');
+      }
+    }
+  }
+
+  // Register all Hive adapters safely
+  safeRegisterAdapter(UserModelAdapter());
+  safeRegisterAdapter(ProduceModelAdapter());
+  safeRegisterAdapter(OrderModelAdapter());
+  safeRegisterAdapter(PaymentModelAdapter());
+  safeRegisterAdapter(LogisticsModelAdapter());
+  safeRegisterAdapter(CartItemAdapter());
+
+  // Transport & tracking adapters
+  safeRegisterAdapter(CropTypeAdapter());
+  safeRegisterAdapter(FarmLocationAdapter());
+  safeRegisterAdapter(LocationSourceAdapter());
+  safeRegisterAdapter(TransportTripTrackingAdapter());
+  safeRegisterAdapter(TripStatusAdapter());
+  safeRegisterAdapter(NotificationRateLimitAdapter());
+  safeRegisterAdapter(TransportRequestAdapter());
+  safeRegisterAdapter(RequestStatusAdapter());
+  safeRegisterAdapter(TripAdapter());
+  safeRegisterAdapter(TripStatusUpdateAdapter());
+
+  // Notifications adapters
+  safeRegisterAdapter(AppNotificationAdapter());
+  safeRegisterAdapter(NotificationTypeAdapter());
+  safeRegisterAdapter(NotificationPriorityAdapter());
+
+  // Bureau inspection adapters
+  safeRegisterAdapter(InspectionAdapter());
+  safeRegisterAdapter(InspectionFindingAdapter());
+  safeRegisterAdapter(InspectionTypeAdapter());
+  safeRegisterAdapter(InspectionStatusAdapter());
+  safeRegisterAdapter(FindingSeverityAdapter());
+  safeRegisterAdapter(InspectionOperationAdapter());
+  safeRegisterAdapter(InspectionOperationTypeAdapter());
+
+  // Open session and user boxes before any service initialization
+  try {
+    await Hive.openBox('session');
+    await Hive.openBox<UserModel>('users');
+    debugPrint('Session and user boxes opened successfully');
+  } catch (e) {
+    debugPrint('Session/user box opening error: $e');
+  }
+
+  // Open common boxes that providers and screens need
+  try {
+    await Hive.openBox('dashboard_cache');
+    await Hive.openBox('policies_cache');
+    await Hive.openBox<CartItem>('cart');
+    await Hive.openBox<ProduceModel>('produce');
+    await Hive.openBox<OrderModel>('orders');
+    await Hive.openBox<PaymentModel>('payments');
+    await Hive.openBox<LogisticsModel>('logistics');
+    debugPrint('All core Hive boxes opened successfully (produce, orders, payments, logistics, cart)');
+  } catch (e) {
+    debugPrint('Common boxes opening error: $e');
+  }
+
+  // Initialize all services with isolated try-catches
+  await _initializeServices();
+
+  // Set system UI overlay style
+  SystemChrome.setSystemUIOverlayStyle(AppTheme.lightSystemOverlay);
+
+  // Set preferred orientations (portrait only for mobile)
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
+  ]);
+
+  runApp(AgriLinkApp(prefs: prefs));
 }
 
-class AgroLinkApp extends StatelessWidget {
-  const AgroLinkApp({super.key});
+/// Initialize all services before app starts (each isolated to prevent cascade failures)
+Future<void> _initializeServices() async {
+  try {
+    await ProduceService().initialize();
+  } catch (e) {
+    debugPrint('ProduceService initialization error: $e');
+  }
+
+  try {
+    await OrderService().initialize();
+  } catch (e) {
+    debugPrint('OrderService initialization error: $e');
+  }
+
+  try {
+    await TransportService().initialize();
+  } catch (e) {
+    debugPrint('TransportService initialization error: $e');
+  }
+
+  try {
+    await NotificationService().initialize();
+  } catch (e) {
+    debugPrint('NotificationService initialization error: $e');
+  }
+
+  // Phase 3 services - Skip location services on web
+  if (!kIsWeb) {
+    try {
+      await LocationService().initialize();
+      await BackgroundLocationService().initialize();
+    } catch (e) {
+      debugPrint('LocationService initialization error: $e');
+    }
+  }
+
+  debugPrint('All services initialized successfully');
+}
+
+/// AgriLink Application Root
+class AgriLinkApp extends StatelessWidget {
+  final SharedPreferences prefs;
+
+  const AgriLinkApp({super.key, required this.prefs});
 
   @override
   Widget build(BuildContext context) {
-    const primaryGreen = Color(0xFF2E7D32);
-    const darkGreen = Color(0xFF1B5E20);
-    const amber = Color(0xFFFFA000);
+    return MultiProvider(
+      providers: [
+        // Phase 9: Theme, Locale, and Preferences Providers
+        ChangeNotifierProvider(create: (_) => ThemeProvider(prefs)),
+        ChangeNotifierProvider(create: (_) => LocaleProvider(prefs)),
+        ChangeNotifierProvider(create: (_) => PreferencesProvider(prefs)),
 
-    return MaterialApp(
-      title: 'AgroLink',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: primaryGreen,
-          primary: primaryGreen,
-          secondary: amber,
-          surface: const Color(0xFFF5F5F5),
-        ),
-        useMaterial3: true,
-        textTheme: GoogleFonts.interTextTheme(),
-        // ── AppBar: Deep green background with white text ──
-        appBarTheme: const AppBarTheme(
-          backgroundColor: primaryGreen,
-          foregroundColor: Colors.white,
-          elevation: 0,
-          centerTitle: false,
-          iconTheme: IconThemeData(color: Colors.white),
-          titleTextStyle: TextStyle(
-            color: Colors.white,
-            fontSize: 20,
-            fontWeight: FontWeight.w700,
-            fontFamily: 'Inter',
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProxyProvider<AuthProvider, ProfileProvider>(
+          create: (context) => ProfileProvider(
+            authProvider: Provider.of<AuthProvider>(context, listen: false),
           ),
+          update: (context, authProvider, previousProfileProvider) =>
+              previousProfileProvider ?? ProfileProvider(authProvider: authProvider),
         ),
-        // ── Navigation Bar: Dark green with amber indicator ──
-        navigationBarTheme: NavigationBarThemeData(
-          backgroundColor: darkGreen,
-          indicatorColor: amber.withValues(alpha: 0.25),
-          iconTheme: WidgetStateProperty.resolveWith((states) {
-            if (states.contains(WidgetState.selected)) {
-              return const IconThemeData(color: amber);
-            }
-            return const IconThemeData(color: Colors.white70);
-          }),
-          labelTextStyle: WidgetStateProperty.resolveWith((states) {
-            if (states.contains(WidgetState.selected)) {
-              return const TextStyle(
-                color: amber,
-                fontWeight: FontWeight.bold,
-                fontSize: 12,
-              );
-            }
-            return const TextStyle(color: Colors.white60, fontSize: 11);
-          }),
-        ),
-        // ── Cards: slight shadow, off-white surface ──
-        cardTheme: CardThemeData(
-          elevation: 3,
-          surfaceTintColor: Colors.white,
-          color: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        ),
-        // ── Scaffold: Light grey background instead of pure white ──
-        scaffoldBackgroundColor: const Color(0xFFF0F4F0),
-        // ── ElevatedButton: Green by default ──
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: primaryGreen,
-            foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ChangeNotifierProvider(create: (_) => ProduceProvider()),
+        ChangeNotifierProvider(create: (_) => OrderProvider()),
+        ChangeNotifierProvider(create: (_) => TransportProvider()),
+        ChangeNotifierProvider(create: (_) => NotificationProvider()),
+        ChangeNotifierProvider(create: (_) => CartProvider()),
+        ChangeNotifierProvider(create: (_) => FavoritesProvider()),
+        // Phase 3: Location Provider
+        ChangeNotifierProvider(create: (_) => LocationProvider()),
+        // Phase 4: Farmer Provider
+        ChangeNotifierProvider(create: (_) => FarmerProvider()),
+        // Phase 5: Buyer Provider
+        ChangeNotifierProvider(create: (_) => BuyerProvider()),
+        // Phase 8: Inspection Provider
+        ChangeNotifierProxyProvider<AuthProvider, InspectionProvider>(
+          create: (context) => InspectionProvider(
+            authProvider: Provider.of<AuthProvider>(context, listen: false),
           ),
+          update: (context, authProvider, previousInspectionProvider) =>
+              previousInspectionProvider ?? InspectionProvider(authProvider: authProvider),
         ),
-        // ── FloatingActionButton ──
-        floatingActionButtonTheme: const FloatingActionButtonThemeData(
-          backgroundColor: amber,
-          foregroundColor: Colors.white,
+      ],
+      child: Consumer2<ThemeProvider, LocaleProvider>(
+        builder: (context, themeProvider, localeProvider, _) => MaterialApp(
+        title: 'AgriLink',
+        debugShowCheckedModeBanner: false,
+        
+        // Theme
+        theme: AppTheme.lightTheme,
+        darkTheme: AppTheme.darkTheme,
+        themeMode: themeProvider.themeMode,
+        
+        // Routes
+        routes: AppRoutes.routes,
+        
+        // Localization
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: const [
+          Locale('en', ''), // English - has full Material support
+          Locale('am', ''), // Amharic
+          Locale('om', ''), // Afaan Oromoo
+        ],
+        // Locale from LocaleProvider
+        locale: localeProvider.locale,
+        // Fallback to English if the user's locale is not supported
+        localeResolutionCallback: (locale, supportedLocales) {
+          // Check if the current device locale is supported
+          for (var supportedLocale in supportedLocales) {
+            if (supportedLocale.languageCode == locale?.languageCode) {
+              return supportedLocale;
+            }
+          }
+          // Fallback to English
+          return const Locale('en');
+        },
+        
+        // Start with splash/initialization screen
+        home: const AppInitializer(),
         ),
       ),
-      initialRoute: AppRoutes.splash,
-      routes: AppRoutes.routes,
+    );
+  }
+}
+
+/// Handles app initialization and routing
+class AppInitializer extends StatefulWidget {
+  const AppInitializer({super.key});
+
+  @override
+  State<AppInitializer> createState() => _AppInitializerState();
+}
+
+class _AppInitializerState extends State<AppInitializer> {
+  @override
+  void initState() {
+    super.initState();
+    // Schedule initialization after the first frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initialize();
+    });
+  }
+
+  Future<void> _initialize() async {
+    // Initialize Phase 9 providers
+    final themeProvider = context.read<ThemeProvider>();
+    final localeProvider = context.read<LocaleProvider>();
+    final preferencesProvider = context.read<PreferencesProvider>();
+
+    await Future.wait([
+      themeProvider.initialize(),
+      localeProvider.initialize(),
+      preferencesProvider.initialize(),
+    ]);
+
+    if (!mounted) return;
+
+    final authProvider = context.read<AuthProvider>();
+    await authProvider.initialize();
+    
+    if (!mounted) return;
+    
+    // Check onboarding status
+    final completedOnboarding = await hasCompletedOnboarding();
+    
+    if (!mounted) return;
+    
+    // Navigate based on state
+    if (!completedOnboarding) {
+      // First time user - show onboarding
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const OnboardingScreen()),
+      );
+    } else if (!authProvider.isAuthenticated) {
+      // Not logged in - show login
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+      );
+    } else {
+      // Already authenticated - route based on role
+      final user = authProvider.user;
+      final role = user?.role.toLowerCase();
+      switch (role) {
+        case 'farmer':
+          Navigator.pushReplacementNamed(context, AppRoutes.farmerDashboard);
+          break;
+        case 'buyer':
+          Navigator.pushReplacementNamed(context, AppRoutes.buyerDashboard);
+          break;
+        case 'transporter':
+          Navigator.pushReplacementNamed(context, AppRoutes.transporterDashboard);
+          break;
+        case 'bureau_officer':
+          Navigator.pushReplacementNamed(context, AppRoutes.bureauDashboard);
+          break;
+        default:
+          Navigator.pushReplacementNamed(context, AppRoutes.home);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Theme.of(context).colorScheme.primary,
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.agriculture_rounded,
+              size: 100,
+              color: Colors.white,
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'AgroLink',
+              style: TextStyle(
+                fontSize: 40,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Connecting Farmers & Markets',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.white.withValues(alpha: 0.8),
+              ),
+            ),
+            const SizedBox(height: 50),
+            const CircularProgressIndicator(
+              color: Colors.white,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

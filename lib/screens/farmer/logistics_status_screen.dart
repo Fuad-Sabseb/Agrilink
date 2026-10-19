@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
-import '../../services/session_service.dart';
-import '../../services/order_service.dart';
-import '../../services/logistics_service.dart';
-import '../../services/produce_service.dart';
+import '../../core/theme/colors.dart';
+import '../../core/services/session_service.dart';
+import '../../core/services/order_service.dart';
+import '../../core/services/logistics_service.dart';
+import '../../core/services/produce_service.dart';
 import '../../models/order_model.dart';
 import '../../models/logistics_model.dart';
 import 'package:intl/intl.dart';
@@ -59,6 +60,7 @@ class _LogisticsStatusScreenState extends State<LogisticsStatusScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Logistics Status'),
       ),
@@ -91,26 +93,30 @@ class _LogisticsStatusScreenState extends State<LogisticsStatusScreen> {
     IconData statusIcon;
     switch (logistics.status) {
       case 'awaiting':
-        statusColor = Colors.orange;
+        statusColor = AppColors.warning;
         statusIcon = Icons.schedule;
         break;
       case 'in_transit':
-        statusColor = Colors.blue;
+        statusColor = AppColors.tertiary;
         statusIcon = Icons.local_shipping;
         break;
       case 'delivered':
-        statusColor = Colors.green;
+        statusColor = AppColors.success;
         statusIcon = Icons.check_circle;
         break;
       default:
-        statusColor = Colors.grey;
+        statusColor = AppColors.disabled;
         statusIcon = Icons.help_outline;
     }
 
     return Card(
       elevation: 2,
+      color: AppColors.surface,
       margin: const EdgeInsets.only(bottom: 16),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: AppColors.border),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -126,11 +132,11 @@ class _LogisticsStatusScreenState extends State<LogisticsStatusScreen> {
                     children: [
                       Text(
                         '$produceName (${order.quantityOrdered})',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary),
                       ),
                       Text(
                         'Destination: ${order.deliveryLocation}',
-                        style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                        style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
                       ),
                     ],
                   ),
@@ -153,7 +159,7 @@ class _LogisticsStatusScreenState extends State<LogisticsStatusScreen> {
                 ),
               ],
             ),
-            const Divider(height: 24),
+            Divider(height: 24, color: AppColors.border),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -166,14 +172,20 @@ class _LogisticsStatusScreenState extends State<LogisticsStatusScreen> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
+                  color: AppColors.background,
                   borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.border),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.note, size: 16, color: Colors.grey),
+                    Icon(Icons.note, size: 16, color: AppColors.secondary),
                     const SizedBox(width: 8),
-                    Expanded(child: Text(logistics.notes, style: const TextStyle(fontSize: 12))),
+                    Expanded(
+                      child: Text(
+                        logistics.notes,
+                        style: TextStyle(fontSize: 12, color: AppColors.textPrimary),
+                      ),
+                    ),
                   ],
                 ),
               )
@@ -188,8 +200,8 @@ class _LogisticsStatusScreenState extends State<LogisticsStatusScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-        Text(time, style: const TextStyle(fontWeight: FontWeight.w500)),
+        Text(label, style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+        Text(time, style: TextStyle(fontWeight: FontWeight.w500, color: AppColors.textPrimary)),
       ],
     );
   }
@@ -201,17 +213,17 @@ class _LogisticsStatusScreenState extends State<LogisticsStatusScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.local_shipping_outlined, size: 80, color: Colors.grey.shade400),
+            Icon(Icons.local_shipping_outlined, size: 80, color: AppColors.disabled),
             const SizedBox(height: 16),
             Text(
               'No Active Deliveries',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.grey.shade700),
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
             ),
             const SizedBox(height: 8),
             Text(
               'Confirmed orders that have been assigned to a transporter will appear here.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey.shade500),
+              style: TextStyle(color: AppColors.textSecondary),
             ),
           ],
         ),

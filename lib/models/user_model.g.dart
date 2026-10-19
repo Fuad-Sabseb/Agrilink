@@ -24,13 +24,20 @@ class UserModelAdapter extends TypeAdapter<UserModel> {
       role: fields[4] as String,
       location: fields[5] as String,
       createdAt: fields[6] as DateTime,
+      email: fields[7] as String?,
+      woreda: fields[8] as String?,
+      kebele: fields[9] as String?,
+      cooperativeName: fields[10] as String?,
+      isVerified: fields[11] as bool,
+      lastLoginAt: fields[12] as DateTime?,
+      roleData: (fields[13] as Map?)?.cast<String, dynamic>(),
     );
   }
 
   @override
   void write(BinaryWriter writer, UserModel obj) {
     writer
-      ..writeByte(7)
+      ..writeByte(14)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -44,7 +51,21 @@ class UserModelAdapter extends TypeAdapter<UserModel> {
       ..writeByte(5)
       ..write(obj.location)
       ..writeByte(6)
-      ..write(obj.createdAt);
+      ..write(obj.createdAt)
+      ..writeByte(7)
+      ..write(obj.email)
+      ..writeByte(8)
+      ..write(obj.woreda)
+      ..writeByte(9)
+      ..write(obj.kebele)
+      ..writeByte(10)
+      ..write(obj.cooperativeName)
+      ..writeByte(11)
+      ..write(obj.isVerified)
+      ..writeByte(12)
+      ..write(obj.lastLoginAt)
+      ..writeByte(13)
+      ..write(obj.roleData);
   }
 
   @override

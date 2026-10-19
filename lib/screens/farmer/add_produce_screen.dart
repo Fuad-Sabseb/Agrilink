@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import '../../services/session_service.dart';
-import '../../services/produce_service.dart';
+import '../../core/theme/colors.dart';
+import '../../core/services/session_service.dart';
+import '../../core/services/produce_service.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_text_field.dart';
 
@@ -37,7 +38,8 @@ class _AddProduceScreenState extends State<AddProduceScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     final farmerId = _sessionService.currentUserId;
-    if (farmerId == null) {
+    final user = _sessionService.currentUser;
+    if (farmerId == null || user == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Session expired. Please login again.')),
       );
@@ -49,22 +51,28 @@ class _AddProduceScreenState extends State<AddProduceScreen> {
     try {
       await _produceService.addProduce(
         farmerId: farmerId,
+        farmerName: user.fullName,
         cropName: _cropNameController.text.trim(),
+        cropType: 'Other', // Default crop type as string
         quantity: double.parse(_quantityController.text.trim()),
         unit: _unitController.text.trim(),
         pricePerUnit: double.parse(_priceController.text.trim()),
         description: _descriptionController.text.trim(),
+        location: user.location,
       );
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Produce added successfully!'), backgroundColor: Colors.green),
+        SnackBar(
+          content: const Text('Produce added successfully!'),
+          backgroundColor: AppColors.success,
+        ),
       );
       Navigator.pop(context); // Go back to dashboard
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
+        SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error),
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -74,6 +82,7 @@ class _AddProduceScreenState extends State<AddProduceScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Add Produce'),
       ),
@@ -144,10 +153,10 @@ class _AddProduceScreenState extends State<AddProduceScreen> {
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.grey.shade300),
+                    borderSide: const BorderSide(color: AppColors.border),
                   ),
                   filled: true,
-                  fillColor: Colors.grey.shade50,
+                  fillColor: AppColors.surface,
                 ),
                 validator: (value) => value!.isEmpty ? 'Please enter a description' : null,
               ),

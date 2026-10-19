@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import '../../services/session_service.dart';
+import '../../core/theme/colors.dart';
+import '../../core/services/session_service.dart';
 import '../../models/produce_model.dart';
 import '../../models/order_model.dart';
 import '../../routes/app_routes.dart';
@@ -26,7 +27,10 @@ class _FarmerDashboardState extends State<FarmerDashboard> {
     final user = _sessionService.currentUser;
     final userId = user?.id;
 
+    final bool boxesOpen = Hive.isBoxOpen('produce') && Hive.isBoxOpen('orders');
+
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Farmer Dashboard'),
         actions: [
@@ -37,60 +41,74 @@ class _FarmerDashboardState extends State<FarmerDashboard> {
           ),
         ],
       ),
-      body: ValueListenableBuilder<Box<ProduceModel>>(
-        valueListenable: Hive.box<ProduceModel>('produce').listenable(),
-        builder: (context, produceBox, _) {
-          return ValueListenableBuilder<Box<OrderModel>>(
-            valueListenable: Hive.box<OrderModel>('orders').listenable(),
-            builder: (context, orderBox, _) {
-              final totalProduce = produceBox.values.where((p) => p.farmerId == userId).length;
-              final pendingOrders = orderBox.values.where((o) => o.farmerId == userId && o.status == 'pending').length;
+      body: !boxesOpen
+          ? _buildDashboardView(user, 0, 0)
+          : ValueListenableBuilder<Box<ProduceModel>>(
+              valueListenable: Hive.box<ProduceModel>('produce').listenable(),
+              builder: (context, produceBox, _) {
+                return ValueListenableBuilder<Box<OrderModel>>(
+                  valueListenable: Hive.box<OrderModel>('orders').listenable(),
+                  builder: (context, orderBox, _) {
+                    final totalProduce = produceBox.values.where((p) => p.farmerId == userId).length;
+                    final pendingOrders = orderBox.values.where((o) => o.farmerId == userId && o.status == 'pending').length;
 
-              return SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Welcome, ${user?.fullName ?? "Farmer"}!',
-                      style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 24),
-                    
-                    // Stats Overview
-                    const Text(
-                      'Overview',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildStatCard(
-                            'My Produce',
-                            totalProduce.toString(),
-                            Icons.inventory_2_outlined,
-                            Colors.green,
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: _buildStatCard(
-                            'Pending Orders',
-                            pendingOrders.toString(),
-                            Icons.pending_actions_outlined,
-                            Colors.orange,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+                    return _buildDashboardView(user, totalProduce, pendingOrders);
+                  },
+                );
+              },
+            ),
+    );
+  }
+
+  Widget _buildDashboardView(dynamic user, int totalProduce, int pendingOrders) {
+    return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Welcome, ${user?.fullName ?? "Farmer"}!',
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 24),
+          
+          // Stats Overview
+          Text(
+            'Overview',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _buildStatCard(
+                  'My Produce',
+                  totalProduce.toString(),
+                  Icons.inventory_2_outlined,
+                  AppColors.primary,
                 ),
-              );
-            },
-          );
-        },
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: _buildStatCard(
+                  'Pending Orders',
+                  pendingOrders.toString(),
+                  Icons.pending_actions_outlined,
+                  AppColors.secondary,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -99,9 +117,9 @@ class _FarmerDashboardState extends State<FarmerDashboard> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -121,7 +139,7 @@ class _FarmerDashboardState extends State<FarmerDashboard> {
             title,
             style: TextStyle(
               fontSize: 14,
-              color: Colors.grey.shade700,
+              color: AppColors.textSecondary,
               fontWeight: FontWeight.w500,
             ),
           ),

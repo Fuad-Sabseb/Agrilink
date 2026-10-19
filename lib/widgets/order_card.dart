@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/order_model.dart';
 import '../models/produce_model.dart';
-import '../services/user_service.dart';
-import '../services/logistics_service.dart';
+import '../core/services/user_service.dart';
+import '../core/services/logistics_service.dart';
+import '../core/theme/colors.dart';
 
 class OrderCard extends StatelessWidget {
   final OrderModel order;
@@ -21,19 +22,19 @@ class OrderCard extends StatelessWidget {
 
   Color _getStatusColor() {
     switch (order.status.toLowerCase()) {
-      case 'pending': return Colors.orange;
-      case 'confirmed': return Colors.blue;
-      case 'picked_up': return Colors.purple;
-      case 'in_transit': return Colors.indigo;
-      case 'delivered': return Colors.green;
-      case 'cancelled': return Colors.red;
-      default: return Colors.grey;
+      case 'pending': return AppColors.accent; // Golden Harvest
+      case 'confirmed': return AppColors.tertiary; // Sky Blue
+      case 'picked_up': return AppColors.secondary; // Coffee Brown
+      case 'in_transit': return AppColors.secondaryLight; // Light Coffee Brown
+      case 'delivered': return AppColors.primary; // Rich Earth Green
+      case 'cancelled': return AppColors.error; // Deep Terracotta
+      default: return AppColors.disabled;
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final currencyFormat = NumberFormat.currency(symbol: 'UGX ', decimalDigits: 0);
+    final currencyFormat = NumberFormat.currency(symbol: 'ETB ', decimalDigits: 0);
     final userService = UserService();
     final logisticsService = LogisticsService();
 
@@ -48,6 +49,12 @@ class OrderCard extends StatelessWidget {
 
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
+      color: AppColors.surface,
+      elevation: 1.5,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: AppColors.border.withValues(alpha: 0.6)),
+      ),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(14),
@@ -63,7 +70,7 @@ class OrderCard extends StatelessWidget {
                   Expanded(
                     child: Text(
                       produce?.cropName ?? 'Unknown Produce',
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
@@ -107,17 +114,17 @@ class OrderCard extends StatelessWidget {
               ),
 
               const SizedBox(height: 12),
-              const Divider(height: 1),
+              Divider(height: 1, color: AppColors.border),
               const SizedBox(height: 10),
 
               // ── People involved ──
               if (buyer != null)
-                _buildPersonRow(Icons.person, 'Buyer', buyer.fullName, buyer.phone, Colors.blue),
+                _buildPersonRow(Icons.person, 'Buyer', buyer.fullName, buyer.phone, AppColors.roleBuyer),
               if (farmer != null)
-                _buildPersonRow(Icons.agriculture, 'Farmer', farmer.fullName, farmer.phone, Colors.green),
+                _buildPersonRow(Icons.agriculture, 'Farmer', farmer.fullName, farmer.phone, AppColors.roleFarmer),
               if (transporter != null) ...[
                 const SizedBox(height: 4),
-                _buildPersonRow(Icons.local_shipping, 'Transporter', transporter.fullName, transporter.phone, Colors.purple),
+                _buildPersonRow(Icons.local_shipping, 'Transporter', transporter.fullName, transporter.phone, AppColors.roleTransporter),
               ],
 
               const SizedBox(height: 8),
@@ -125,17 +132,17 @@ class OrderCard extends StatelessWidget {
               // ── Delivery location + action button ──
               Row(
                 children: [
-                  const Icon(Icons.location_on_outlined, size: 15, color: Colors.grey),
+                  Icon(Icons.location_on_outlined, size: 15, color: AppColors.secondary),
                   const SizedBox(width: 4),
                   Expanded(
                     child: Text(
                       'To: ${order.deliveryLocation}',
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                      style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  if (trailing != null) trailing!,
+                  ?trailing,
                 ],
               ),
             ],
@@ -154,16 +161,16 @@ class OrderCard extends StatelessWidget {
           const SizedBox(width: 6),
           Text(
             '$role: ',
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.w500),
+            style: TextStyle(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
           ),
           Text(
             name,
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
           ),
           const SizedBox(width: 4),
           Text(
-            '(+256 $phone)',
-            style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+            '($phone)',
+            style: TextStyle(fontSize: 11, color: AppColors.textTertiary),
           ),
         ],
       ),
@@ -173,13 +180,13 @@ class OrderCard extends StatelessWidget {
   Widget _buildInfoColumn(String label, String value, IconData icon) {
     return Row(
       children: [
-        Icon(icon, size: 18, color: Colors.grey),
+        Icon(icon, size: 18, color: AppColors.secondary),
         const SizedBox(width: 6),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
-            Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+            Text(label, style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+            Text(value, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary)),
           ],
         ),
       ],

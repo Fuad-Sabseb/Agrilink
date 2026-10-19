@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import '../../services/session_service.dart';
-import '../../services/order_service.dart';
-import '../../services/produce_service.dart';
+import '../../core/theme/colors.dart';
+import '../../core/services/session_service.dart';
+import '../../core/services/order_service.dart';
+import '../../core/services/produce_service.dart';
 import '../../models/order_model.dart';
 import '../../models/produce_model.dart';
 import '../../widgets/order_card.dart';
@@ -16,44 +17,28 @@ class OrderRequestsScreen extends StatelessWidget {
     final orderService = OrderService();
     final produceService = ProduceService();
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Order Requests')),
-      body: ValueListenableBuilder<Box<OrderModel>>(
-        valueListenable: Hive.box<OrderModel>('orders').listenable(),
-        builder: (context, orderBox, _) {
-          return ValueListenableBuilder<Box<ProduceModel>>(
-            valueListenable: Hive.box<ProduceModel>('produce').listenable(),
-            builder: (context, produceBox, _) {
-              final userId = sessionService.currentUserId;
-              final orders = orderBox.values
-                  .where((o) => o.farmerId == userId)
-                  .toList()
-                ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    final bool boxesOpen = Hive.isBoxOpen('orders') && Hive.isBoxOpen('produce');
 
-              if (orders.isEmpty) {
-                return Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(32.0),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.receipt_long_outlined, size: 80, color: Colors.grey.shade400),
-                        const SizedBox(height: 16),
-                        Text(
-                          'No Orders Yet',
-                          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.grey.shade700),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'When buyers place orders for your produce, they will appear here.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: Colors.grey.shade500),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              }
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(title: const Text('Order Requests')),
+      body: !boxesOpen
+          ? _buildEmptyState()
+          : ValueListenableBuilder<Box<OrderModel>>(
+              valueListenable: Hive.box<OrderModel>('orders').listenable(),
+              builder: (context, orderBox, _) {
+                return ValueListenableBuilder<Box<ProduceModel>>(
+                  valueListenable: Hive.box<ProduceModel>('produce').listenable(),
+                  builder: (context, produceBox, _) {
+                    final userId = sessionService.currentUserId;
+                    final orders = orderBox.values
+                        .where((o) => o.farmerId == userId)
+                        .toList()
+                      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+                    if (orders.isEmpty) {
+                      return _buildEmptyState();
+                    }
 
               return ListView.builder(
                 padding: const EdgeInsets.all(16),
@@ -62,7 +47,20 @@ class OrderRequestsScreen extends StatelessWidget {
                   final order = orders[index];
                   final produce = produceBox.values.firstWhere(
                     (p) => p.id == order.produceId,
-                    orElse: () => ProduceModel(id: '', farmerId: '', cropName: 'Unknown', quantity: 0, unit: '', pricePerUnit: 0, description: '', status: 'unavailable', createdAt: DateTime.now()),
+                    orElse: () => ProduceModel(
+                      id: '',
+                      farmerId: '',
+                      farmerName: 'Unknown',
+                      cropName: 'Unknown',
+                      cropType: 'other',
+                      quantity: 0,
+                      unit: 'kg',
+                      pricePerUnit: 0,
+                      description: 'Item not found',
+                      status: 'unavailable',
+                      location: 'Unknown',
+                      createdAt: DateTime.now(),
+                    ),
                   );
 
                   Widget? trailing;
@@ -77,7 +75,7 @@ class OrderRequestsScreen extends StatelessWidget {
                               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Order declined.')));
                             }
                           },
-                          style: TextButton.styleFrom(foregroundColor: Colors.red),
+                          style: TextButton.styleFrom(foregroundColor: AppColors.error),
                           child: const Text('Decline'),
                         ),
                         const SizedBox(width: 4),
@@ -91,7 +89,7 @@ class OrderRequestsScreen extends StatelessWidget {
                             }
                           },
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green,
+                            backgroundColor: AppColors.primary,
                             foregroundColor: Colors.white,
                           ),
                           child: const Text('Accept'),
@@ -110,6 +108,31 @@ class OrderRequestsScreen extends StatelessWidget {
             },
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.receipt_long_outlined, size: 80, color: AppColors.disabled),
+            const SizedBox(height: 16),
+            Text(
+              'No Orders Yet',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'When buyers place orders for your produce, they will appear here.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
+          ],
+        ),
       ),
     );
   }
