@@ -9,7 +9,9 @@ class ApiConfig {
 
   // Base URLs for different environments
   static const Map<String, String> _baseUrls = {
-    'development': 'https://dev-api.agrolink.et/v1',
+    'local': 'http://localhost:5001/api/v1',
+    'emulator': 'http://10.0.2.2:5001/api/v1',
+    'development': 'http://localhost:5001/api/v1',
     'staging': 'https://staging-api.agrolink.et/v1',
     'production': 'https://api.agrolink.et/v1',
   };
