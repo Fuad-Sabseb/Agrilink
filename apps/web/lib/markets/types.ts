@@ -2,6 +2,7 @@ export interface Crop {
   id: string;
   slug: string;
   name: string;
+  nameAfaanOromoo?: string;
   isPerishable: boolean;
   isActive: boolean;
 }
