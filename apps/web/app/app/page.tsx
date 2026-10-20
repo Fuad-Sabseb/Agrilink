@@ -189,6 +189,30 @@ function FarmerDashboardView() {
               <span className="text-white/40">→</span>
             </div>
           </Link>
+          <Link href="/app/logistics">
+            <div className="flex items-center justify-between text-sm rounded-2xl bg-white/[0.06] hover:bg-white/[0.1] px-4 py-3 transition-colors">
+              <span className="text-white font-medium">🚚 AgriLogistics & Kellaa Tariffs</span>
+              <span className="text-white/40">→</span>
+            </div>
+          </Link>
+          <Link href="/app/assistant">
+            <div className="flex items-center justify-between text-sm rounded-2xl bg-gradient-to-r from-emerald-950/60 to-amber-950/60 border border-emerald-600/30 hover:border-emerald-500/60 px-4 py-3 transition-colors">
+              <span className="text-emerald-300 font-semibold flex items-center gap-2">
+                <span>🤖</span>
+                <span>AgriAI Assistant & Disease Scanner</span>
+              </span>
+              <span className="text-emerald-400">→</span>
+            </div>
+          </Link>
+          <Link href="/app/institutional">
+            <div className="flex items-center justify-between text-sm rounded-2xl bg-gradient-to-r from-stone-900 to-amber-950/40 border border-amber-600/30 hover:border-amber-500/60 px-4 py-3 transition-colors">
+              <span className="text-amber-300 font-semibold flex items-center gap-2">
+                <span>🏛️</span>
+                <span>Institutional Agricultural Intelligence</span>
+              </span>
+              <span className="text-amber-400">→</span>
+            </div>
+          </Link>
         </div>
       </Card>
     </>
@@ -263,6 +287,30 @@ function AppHome() {
                   <div className="flex items-center justify-between text-sm rounded-2xl bg-white/[0.06] hover:bg-white/[0.1] px-4 py-3 transition-colors">
                     <span className="text-white font-medium">Market prices</span>
                     <span className="text-white/40">→</span>
+                  </div>
+                </Link>
+                <Link href="/app/logistics">
+                  <div className="flex items-center justify-between text-sm rounded-2xl bg-white/[0.06] hover:bg-white/[0.1] px-4 py-3 transition-colors">
+                    <span className="text-white font-medium">🚚 AgriLogistics & Kellaa Tariffs</span>
+                    <span className="text-white/40">→</span>
+                  </div>
+                </Link>
+                <Link href="/app/assistant">
+                  <div className="flex items-center justify-between text-sm rounded-2xl bg-gradient-to-r from-emerald-950/60 to-amber-950/60 border border-emerald-600/30 hover:border-emerald-500/60 px-4 py-3 transition-colors">
+                    <span className="text-emerald-300 font-semibold flex items-center gap-2">
+                      <span>🤖</span>
+                      <span>AgriAI Assistant & Disease Scanner</span>
+                    </span>
+                    <span className="text-emerald-400">→</span>
+                  </div>
+                </Link>
+                <Link href="/app/institutional">
+                  <div className="flex items-center justify-between text-sm rounded-2xl bg-gradient-to-r from-stone-900 to-amber-950/40 border border-amber-600/30 hover:border-amber-500/60 px-4 py-3 transition-colors">
+                    <span className="text-amber-300 font-semibold flex items-center gap-2">
+                      <span>🏛️</span>
+                      <span>Institutional Agricultural Intelligence</span>
+                    </span>
+                    <span className="text-amber-400">→</span>
                   </div>
                 </Link>
               </div>
