@@ -65,7 +65,7 @@ function BuyerProfileForm() {
     setZone(p.zone ?? '');
     setWoreda(p.woreda ?? '');
     setFeePercent(
-      p.disclosedFeeBasisPoints === null ? '' : String(p.disclosedFeeBasisPoints / 100),
+      p.disclosedFeeBasisPoints == null ? '' : String(p.disclosedFeeBasisPoints / 100),
     );
   }
 
