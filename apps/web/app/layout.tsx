@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import { AuthProvider } from "../lib/auth/AuthContext";
+import { I18nProvider } from "../lib/i18n/I18nContext";
+import { OfflineBanner } from "../components/ui/OfflineBanner";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -15,7 +17,7 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "AgriLink — Jimma Zone",
+  title: "AgriLink — Godina Jimmaa",
   description:
     "Market intelligence, buyers, and logistics for Jimma Zone farmers.",
 };
@@ -28,9 +30,14 @@ export default function RootLayout({
   return (
     <html lang="om">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-agrilink-green-dark`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-agrilink-green-dark min-h-screen flex flex-col text-white`}
       >
-        <AuthProvider>{children}</AuthProvider>
+        <I18nProvider>
+          <AuthProvider>
+            <OfflineBanner />
+            <main className="flex-1">{children}</main>
+          </AuthProvider>
+        </I18nProvider>
       </body>
     </html>
   );
