@@ -1,7 +1,9 @@
 import { authRequest } from '../auth/api-client';
 import type {
+  Cooperative,
   CreateFarmCropRecordInput,
   CreateFarmInput,
+  CreditworthinessProfile,
   Crop,
   Farm,
   FarmCropRecord,
@@ -61,4 +63,22 @@ export const farmersApi = {
 
   deleteFarmCropRecord: (farmId: string, id: string) =>
     authRequest<void>(`/farms/${farmId}/crops/${id}`, { method: 'DELETE' }),
+
+  // Phase 4 additions: Cooperatives & Creditworthiness
+  listCooperatives: (woreda?: string) =>
+    authRequest<{ success: boolean; count: number; cooperatives: Cooperative[] }>(
+      `/cooperatives${woreda ? `?woreda=${encodeURIComponent(woreda)}` : ''}`,
+    ),
+
+  linkFarmToCooperative: (farmId: string, cooperativeId: string, membershipNumber?: string) =>
+    authRequest<{ success: boolean; message: string; farm: Farm; cooperative: Cooperative }>(
+      `/farms/${farmId}/link-cooperative`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ cooperativeId, membershipNumber }),
+      },
+    ),
+
+  getCreditworthinessProfile: () =>
+    authRequest<CreditworthinessProfile>('/farmers/me/creditworthiness'),
 };
