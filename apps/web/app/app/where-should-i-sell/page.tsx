@@ -13,7 +13,6 @@ import type {
   DataQualityWarning,
   ExclusionReason,
   NoResultReason,
-  RecommendationCandidate,
   RecommendationResult,
 } from '../../../lib/recommendation/types';
 import { Card } from '../../../components/ui/Card';
@@ -21,7 +20,10 @@ import { Select } from '../../../components/ui/Select';
 import { Input } from '../../../components/ui/Input';
 import { Button } from '../../../components/ui/Button';
 import { Alert } from '../../../components/ui/Alert';
-import { FreshnessBadge } from '../../../components/ui/FreshnessBadge';
+import { LanguageSwitcher } from '../../../components/i18n/LanguageSwitcher';
+import { useTranslation } from '../../../lib/i18n/I18nContext';
+import { RecommendationCard } from '../../../components/recommendation/RecommendationCard';
+import { offlineStorage } from '../../../lib/offline/offline-storage';
 
 const EXCLUSION_LABELS: Record<ExclusionReason, string> = {
   no_price_data: 'No price data recorded for this crop at this market yet.',
@@ -30,12 +32,6 @@ const EXCLUSION_LABELS: Record<ExclusionReason, string> = {
     'The transport route to this market has invalid settings, so a cost estimate could not be produced.',
 };
 
-/**
- * Phase 19/20 — an empty result has several genuinely different causes,
- * and each has a different remedy. Telling a farmer "no recommendation
- * available" and leaving them to guess is a dead end; each of these says
- * what happened and what (if anything) they can do about it.
- */
 const NO_RESULT_CONTENT: Record<
   NoResultReason,
   { title: string; body: string; action?: { label: string; href: string } }
@@ -59,9 +55,6 @@ const NO_RESULT_CONTENT: Record<
   },
 };
 
-// Plain-language equivalents of the API's machine-readable warnings. The
-// backend deliberately returns codes, not sentences, so wording can change
-// here (and be translated in Phase 33) without touching the engine.
 const WARNING_LABELS: Record<DataQualityWarning, string> = {
   demo_prices_used:
     'This result uses demonstration data, not real observed market prices. Do not make a selling decision based on it.',
@@ -73,182 +66,8 @@ const WARNING_LABELS: Record<DataQualityWarning, string> = {
     'The top two markets are very close. Other factors — buyer reliability, road conditions, who is actually buying today — may matter more than this difference.',
 };
 
-function priceAgeLabel(days: number): string {
-  if (days === 0) return 'recorded today';
-  if (days === 1) return 'recorded yesterday';
-  return `recorded ${days} days ago`;
-}
-
-function CalculationBreakdown({ candidate }: { candidate: RecommendationCandidate }) {
-  return (
-    <dl className="mt-3 space-y-1.5 text-sm">
-      <Row
-        label="Gross revenue"
-        value={`${candidate.grossRevenue} ETB`}
-        sublabel={`at ${candidate.pricePerKg} ETB/kg`}
-      />
-      <Row label="Transport cost" value={`− ${candidate.transportCost} ETB`} muted
-        sublabel={`${candidate.distanceKm} km`} />
-      <Row label="Transit / logistics fee" value={`− ${candidate.transitFee} ETB`} muted />
-      <div className="border-t border-white/10 pt-1.5">
-        <Row
-          label="Estimated net revenue"
-          value={`${candidate.netRevenue} ETB`}
-          bold
-          negative={candidate.isLoss}
-          sublabel={`${candidate.netRevenuePerKg} ETB per kg`}
-        />
-      </div>
-    </dl>
-  );
-}
-
-function ResultCandidate({
-  candidate,
-  rank,
-}: {
-  candidate: RecommendationCandidate;
-  rank: number;
-}) {
-  const [showMath, setShowMath] = useState(candidate.isRecommended);
-  // Stable per-market id so aria-controls points at a real element.
-  const breakdownId = `breakdown-${candidate.market.id}`;
-
-  return (
-    <Card
-      className={
-        candidate.isRecommended ? 'border-agrilink-gold ring-1 ring-agrilink-gold' : undefined
-      }
-    >
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-xs text-white/40" aria-hidden="true">
-            #{rank}
-          </p>
-          <h3 className="text-white font-semibold">
-            <span className="sr-only">Option {rank}: </span>
-            {candidate.market.name}
-          </h3>
-          <p className="text-xs text-white/50">
-            {candidate.market.zone} · {candidate.distanceKm} km away
-          </p>
-        </div>
-        <div className="text-right">
-          {/* The visual layout splits the figure from its meaning across
-              two lines; aria-label keeps them together for a screen
-              reader, which would otherwise read a bare number. */}
-          <p
-            className={`text-lg font-bold ${
-              candidate.isLoss ? 'text-agrilink-error' : 'text-white'
-            }`}
-            aria-label={`Estimated net revenue ${candidate.netRevenue} Ethiopian Birr`}
-          >
-            {candidate.netRevenue} ETB
-          </p>
-          <p className="text-[11px] text-white/40">
-            <span aria-hidden="true">{candidate.netRevenuePerKg} ETB/kg net</span>
-            <span className="sr-only">
-              {candidate.netRevenuePerKg} Ethiopian Birr net per kilogram
-            </span>
-          </p>
-        </div>
-      </div>
-
-      <div className="flex items-center gap-2 mt-2 flex-wrap">
-        {candidate.isRecommended && (
-          <span className="inline-block text-[10px] font-bold tracking-wide text-agrilink-green-dark bg-agrilink-gold rounded-full px-3 py-1">
-            BEST ESTIMATED NET RETURN
-          </span>
-        )}
-        {/* A tie on the top spot is stated plainly rather than hidden
-            behind an arbitrary sort order picking a "winner". */}
-        {candidate.isTiedWithBest && !candidate.isRecommended && (
-          <span className="inline-block text-[10px] font-semibold text-agrilink-gold border border-agrilink-gold/50 rounded-full px-3 py-1">
-            TIED WITH BEST
-          </span>
-        )}
-        <FreshnessBadge freshness={candidate.priceFreshness} />
-      </div>
-
-      {candidate.isLoss && (
-        <div className="mt-2">
-          <Alert variant="error">
-            Estimated cost exceeds what the crop would earn here — selling at this market
-            would lose money at this quantity.
-          </Alert>
-        </div>
-      )}
-
-      {candidate.advantageOverNext &&
-        Number(candidate.advantageOverNext) > 0 &&
-        candidate.isRecommended && (
-          <p className="text-xs text-white/50 mt-2">
-            {Number(candidate.advantageOverNext).toFixed(2)} ETB better than the next option.
-          </p>
-        )}
-
-      {/* Phase 20 accessibility: four identical "Show the calculation"
-          buttons are ambiguous when a screen reader lists controls out of
-          context, so the accessible name names the market too. The
-          visible label stays short. aria-controls ties the button to the
-          region it toggles. */}
-      <button
-        type="button"
-        onClick={() => setShowMath((v) => !v)}
-        className="text-xs text-agrilink-gold mt-3"
-        aria-expanded={showMath}
-        aria-controls={breakdownId}
-        aria-label={`${showMath ? 'Hide' : 'Show'} the calculation for ${candidate.market.name}`}
-      >
-        {showMath ? 'Hide the calculation' : 'Show the calculation'}
-      </button>
-
-      {showMath && (
-        <div id={breakdownId}>
-          <CalculationBreakdown candidate={candidate} />
-          <p className="text-[11px] text-white/35 mt-2">
-            Price {priceAgeLabel(candidate.priceAgeDays)} ({candidate.priceObservationDate}) ·
-            source: {candidate.priceSource === 'demo' ? 'demonstration data' : 'recorded by AgriLink'}
-          </p>
-        </div>
-      )}
-    </Card>
-  );
-}
-
-function Row({
-  label,
-  value,
-  sublabel,
-  muted,
-  bold,
-  negative,
-}: {
-  label: string;
-  value: string;
-  sublabel?: string;
-  muted?: boolean;
-  bold?: boolean;
-  negative?: boolean;
-}) {
-  return (
-    <div className="flex justify-between items-start">
-      <div>
-        <dt className={muted ? 'text-white/40' : 'text-white/60'}>{label}</dt>
-        {sublabel && <p className="text-[11px] text-white/30">{sublabel}</p>}
-      </div>
-      <dd
-        className={`${bold ? 'font-semibold' : ''} ${
-          negative ? 'text-agrilink-error' : muted ? 'text-white/50' : 'text-white'
-        }`}
-      >
-        {value}
-      </dd>
-    </div>
-  );
-}
-
 function RecommendationForm() {
+  const { t, locale } = useTranslation();
   const [farms, setFarms] = useState<Farm[] | null>(null);
   const [crops, setCrops] = useState<Crop[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -260,6 +79,7 @@ function RecommendationForm() {
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [result, setResult] = useState<RecommendationResult | null>(null);
+  const [isCachedResult, setIsCachedResult] = useState(false);
 
   useEffect(() => {
     Promise.all([farmersApi.listMyFarms(), marketsApi.listCrops()])
@@ -276,11 +96,11 @@ function RecommendationForm() {
 
   function validate(): boolean {
     const errors: Record<string, string> = {};
-    if (!farmId) errors.farmId = 'Choose a farm';
-    if (!cropId) errors.cropId = 'Choose a crop';
+    if (!farmId) errors.farmId = t('recommendations.selectFarm');
+    if (!cropId) errors.cropId = t('recommendations.selectCrop');
     const qty = Number(quantityKg);
     if (!quantityKg || Number.isNaN(qty) || qty <= 0) {
-      errors.quantityKg = 'Enter a quantity greater than 0';
+      errors.quantityKg = t('recommendations.enterQuantity');
     }
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
@@ -290,16 +110,32 @@ function RecommendationForm() {
     e.preventDefault();
     setFormError(null);
     setResult(null);
+    setIsCachedResult(false);
     if (!validate()) return;
 
+    const cacheKey = `rec_${farmId}_${cropId}_${quantityKg}`;
     setIsSubmitting(true);
+
     try {
+      // 1. Attempt live calculation
       const data = await recommendationApi.getRecommendation(farmId, cropId, Number(quantityKg));
       setResult(data);
+
+      // Save to IndexedDB cache
+      await offlineStorage.saveRecommendation(cacheKey, data);
     } catch (err) {
-      setFormError(
-        err instanceof ApiError ? err.message : 'Could not calculate a recommendation.',
-      );
+      // 2. On network failure or offline, fall back to IndexedDB cached recommendations
+      const cached = await offlineStorage.getCachedRecommendation<RecommendationResult>(cacheKey);
+      if (cached && cached.result) {
+        setResult(cached.result);
+        setIsCachedResult(true);
+      } else {
+        setFormError(
+          err instanceof ApiError
+            ? err.message
+            : t('offline.cachedData', { defaultValue: 'Could not calculate a recommendation. Please check connection.' }),
+        );
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -327,6 +163,8 @@ function RecommendationForm() {
     );
   }
 
+  const selectedCrop = crops.find((c) => c.id === cropId);
+
   return (
     <div className="space-y-4">
       <Card>
@@ -334,7 +172,7 @@ function RecommendationForm() {
           {formError && <Alert variant="error">{formError}</Alert>}
 
           <Select
-            label="Farm"
+            label={t('terms.farm', { defaultValue: 'Farm' })}
             name="farmId"
             value={farmId}
             onChange={(e) => setFarmId(e.target.value)}
@@ -349,22 +187,26 @@ function RecommendationForm() {
           </Select>
 
           <Select
-            label="Crop"
+            label={t('recommendations.selectCrop', { defaultValue: 'Crop' })}
             name="cropId"
             value={cropId}
             onChange={(e) => setCropId(e.target.value)}
             error={fieldErrors.cropId}
             disabled={isSubmitting}
           >
-            {crops.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
+            {crops.map((c) => {
+              const cropKey = c.name.toLowerCase();
+              const localizedCrop = t(`crops.${cropKey}`, { defaultValue: c.name });
+              return (
+                <option key={c.id} value={c.id}>
+                  {localizedCrop} {locale !== 'en' ? `(${c.name})` : ''}
+                </option>
+              );
+            })}
           </Select>
 
           <Input
-            label="Quantity (kg)"
+            label={`${t('terms.quantity', { defaultValue: 'Quantity' })} (kg)`}
             name="quantityKg"
             type="number"
             step="0.01"
@@ -376,30 +218,30 @@ function RecommendationForm() {
           />
 
           <Button type="submit" isLoading={isSubmitting}>
-            {isSubmitting ? 'Calculating…' : 'Where should I sell?'}
+            {isSubmitting
+              ? t('recommendations.calculatingButton', { defaultValue: 'Shallagaa jira...' })
+              : t('recommendations.calculateButton', { defaultValue: 'Eessatti Akkan Gurguru Shallagi' })}
           </Button>
-          {/* Announced to screen readers only — the visible spinner in the
-              button conveys this to sighted users. */}
+
           <span className="sr-only" role="status" aria-live="polite">
             {isSubmitting ? 'Calculating your recommendation, please wait.' : ''}
           </span>
         </form>
       </Card>
 
-      {/* Phase 20 accessibility: results arrive asynchronously after a
-          button press, which a screen reader would otherwise not announce
-          at all. aria-live="polite" announces the outcome once rendered
-          without interrupting whatever the user is currently reading. */}
       {result && (
         <div className="space-y-3" role="region" aria-live="polite" aria-label="Recommendation results">
           <p className="text-xs text-white/50 text-center">
-            {result.quantityKg} kg of {result.cropName} from {result.farm.name} (
-            {result.farm.zone})
+            {result.quantityKg} kg of {result.cropName} from {result.farm.name} ({result.farm.zone})
           </p>
 
-          {/* Result-level warnings come first: a farmer should know the
-              result is built on demo or stale data BEFORE reading the
-              numbers, not after. */}
+          {isCachedResult && (
+            <div className="p-2.5 rounded-xl bg-amber-500/20 border border-amber-500/40 text-xs text-amber-200 text-center flex items-center justify-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-amber-400" />
+              <span>{t('offline.cachedData', { defaultValue: 'Oodeeffannoon kun kuusaa bilbilaa keessaa dhiyaate.' })}</span>
+            </div>
+          )}
+
           {result.warnings.map((w) => (
             <Alert key={w} variant="error">
               {WARNING_LABELS[w]}
@@ -426,8 +268,29 @@ function RecommendationForm() {
             </Card>
           )}
 
+          {/* Render Candidate Cards using the new RecommendationCard component */}
           {result.candidates.map((c, i) => (
-            <ResultCandidate key={c.market.id} candidate={c} rank={i + 1} />
+            <RecommendationCard
+              key={c.market.id}
+              rank={i + 1}
+              marketName={c.market.name}
+              zone={c.market.zone}
+              distanceKm={c.distanceKm}
+              cropName={result.cropName}
+              cropNameAfaanOromoo={selectedCrop ? t(`crops.${selectedCrop.name.toLowerCase()}`, { defaultValue: result.cropName }) : result.cropName}
+              quantityKg={result.quantityKg}
+              pricePerKg={c.pricePerKg}
+              grossRevenue={c.grossRevenue}
+              transportCost={c.transportCost}
+              transitFee={c.transitFee}
+              netRevenue={c.netRevenue}
+              netRevenuePerKg={c.netRevenuePerKg}
+              isRecommended={c.isRecommended}
+              isTiedWithBest={c.isTiedWithBest}
+              isLoss={c.isLoss}
+              isFromCache={isCachedResult}
+              advantageOverNext={c.advantageOverNext}
+            />
           ))}
 
           {result.excluded.length > 0 && (
@@ -445,8 +308,7 @@ function RecommendationForm() {
           )}
 
           <p className="text-[11px] text-white/30 text-center">
-            Calculated {new Date(result.calculatedAt).toLocaleString()}. Estimates only —
-            actual costs and prices on the day may differ.
+            {t('recommendations.disclaimer', { defaultValue: 'Tilmaama qofaa dha — gatiin fi baasiin qabatamaa guyyaa gurgurtaa garaagarummaa qabaachuu danda\'a.' })}
           </p>
         </div>
       )}
@@ -455,19 +317,28 @@ function RecommendationForm() {
 }
 
 export default function WhereShouldISellPage() {
+  const { t } = useTranslation();
+
   return (
     <RequireAuth allowRoles={['farmer']}>
-      <main className="min-h-screen bg-agrilink-green-dark px-6 py-10">
+      <main className="min-h-screen bg-agrilink-green-dark px-4 py-8 sm:px-6 sm:py-10">
         <div className="mx-auto w-full max-w-md space-y-6">
-          <div>
-            <Link href="/app" className="text-sm text-white/50">
-              ← Back
+          <div className="flex items-center justify-between">
+            <Link href="/app" className="text-xs text-white/60 hover:text-white transition-colors">
+              ← {t('actions.cancel', { defaultValue: 'Deebi\'i' })}
             </Link>
-            <h1 className="text-xl font-bold text-white mt-1">Where should I sell?</h1>
-            <p className="text-xs text-white/50">
-              Estimated net revenue after transport cost, by market
+            <LanguageSwitcher />
+          </div>
+
+          <div>
+            <h1 className="text-2xl font-extrabold text-white tracking-tight">
+              {t('recommendations.title', { defaultValue: 'Eessatti Akkan Gurguru?' })}
+            </h1>
+            <p className="text-xs text-white/60 mt-1">
+              {t('recommendations.subtitle', { defaultValue: 'Gatii gabaa qofa osoo hin taane, baasii geejjibaa erga hir\'ifamee booda galii qulqulluu shallaga.' })}
             </p>
           </div>
+
           <RecommendationForm />
         </div>
       </main>
