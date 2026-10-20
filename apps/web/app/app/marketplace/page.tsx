@@ -11,82 +11,28 @@ import type { BuyerTier, DemandView } from '../../../lib/marketplace/types';
 import { Card } from '../../../components/ui/Card';
 import { Select } from '../../../components/ui/Select';
 import { Alert } from '../../../components/ui/Alert';
-import {
-  DisclosedFeeLine,
-  ReliabilityLine,
-  TierBadge,
-  VerificationBadge,
-} from '../../../components/marketplace/BuyerBadges';
+import { BuyerDemandCard } from '../../../components/marketplace/BuyerDemandCard';
+import { ProduceMatchEngine } from '../../../components/marketplace/ProduceMatchEngine';
+import { LanguageSwitcher } from '../../../components/i18n/LanguageSwitcher';
+import { useTranslation } from '../../../lib/i18n/I18nContext';
 
-function DemandCard({ demand }: { demand: DemandView }) {
-  const buyerName = demand.buyer.businessName ?? 'Buyer';
-  const location = [demand.buyer.woreda, demand.buyer.zone].filter(Boolean).join(', ');
+type TabMode = 'buying_now' | 'match' | 'browse';
 
-  return (
-    <Card>
-      <div className="flex items-start justify-between">
-        <div>
-          <h3 className="text-white font-semibold">{demand.crop.name}</h3>
-          <p className="text-xs text-white/50">
-            Wants {demand.quantityKg} kg
-            {demand.grade !== 'standard' && ` · ${demand.grade} grade`}
-          </p>
-        </div>
-        <div className="text-right">
-          {demand.offerPricePerKg ? (
-            <>
-              <p className="text-lg font-bold text-white">{demand.offerPricePerKg} ETB</p>
-              <p className="text-[11px] text-white/40">per kg</p>
-            </>
-          ) : (
-            <p className="text-xs text-white/50">Price negotiable</p>
-          )}
-        </div>
-      </div>
+function MarketplaceContent() {
+  const { locale, t } = useTranslation();
+  const [activeTab, setActiveTab] = useState<TabMode>('buying_now');
 
-      <div className="mt-3 border-t border-white/10 pt-3">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-white text-sm font-medium">{buyerName}</span>
-          <VerificationBadge status={demand.buyer.verificationStatus} />
-          <TierBadge tier={demand.buyer.tier} />
-        </div>
-        {location && <p className="text-xs text-white/50 mt-1">{location}</p>}
-        <div className="mt-1 space-y-0.5">
-          <ReliabilityLine reliability={demand.buyer.reliability} />
-          <DisclosedFeeLine feePercent={demand.buyer.disclosedFeePercent} />
-        </div>
-      </div>
-
-      {(demand.deliveryZone || demand.neededBy) && (
-        <p className="text-xs text-white/50 mt-3">
-          {demand.deliveryZone && `Deliver to ${demand.deliveryZone}`}
-          {demand.deliveryZone && demand.neededBy && ' · '}
-          {demand.neededBy && `Needed by ${demand.neededBy}`}
-        </p>
-      )}
-
-      {demand.notes && <p className="text-xs text-white/60 mt-2">{demand.notes}</p>}
-
-      {/* No "contact buyer" action yet: the negotiation/agreement flow
-          (proposal §7.3) is Phase 23–24's scope. A button here would be a
-          fake control, which this build does not ship. */}
-      <p className="text-[11px] text-white/30 mt-3">
-        Contacting buyers through AgriLink is coming in a later phase.
-      </p>
-    </Card>
-  );
-}
-
-function MarketplaceBrowser() {
   const [crops, setCrops] = useState<Crop[] | null>(null);
   const [demands, setDemands] = useState<DemandView[] | null>(null);
+  const [buyingNowDemands, setBuyingNowDemands] = useState<DemandView[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [cropId, setCropId] = useState('');
   const [tier, setTier] = useState<'' | BuyerTier>('');
   const [verifiedOnly, setVerifiedOnly] = useState(false);
 
-  const load = useCallback(() => {
+  // Load all demands
+  const loadDemands = useCallback(() => {
     setDemands(null);
     setLoadError(null);
     marketplaceApi
@@ -97,9 +43,17 @@ function MarketplaceBrowser() {
       })
       .then(setDemands)
       .catch((err) =>
-        setLoadError(err instanceof ApiError ? err.message : 'Could not load buyer postings.'),
+        setLoadError(err instanceof ApiError ? err.message : 'Could not load buyer postings.')
       );
   }, [cropId, tier, verifiedOnly]);
+
+  // Load live Buying Now stream
+  const loadBuyingNow = useCallback(() => {
+    marketplaceApi
+      .getBuyingNowDemands()
+      .then(setBuyingNowDemands)
+      .catch(() => setBuyingNowDemands([]));
+  }, []);
 
   useEffect(() => {
     marketsApi
@@ -108,78 +62,171 @@ function MarketplaceBrowser() {
       .catch(() => setCrops([]));
   }, []);
 
-  useEffect(load, [load]);
+  useEffect(loadDemands, [loadDemands]);
+  useEffect(loadBuyingNow, [loadBuyingNow]);
 
   return (
-    <div className="space-y-4">
-      <Card>
-        <div className="space-y-3">
-          <Select
-            label="Crop"
-            name="cropId"
-            value={cropId}
-            onChange={(e) => setCropId(e.target.value)}
-          >
-            <option value="">All crops</option>
-            {(crops ?? []).map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </Select>
+    <div className="space-y-6">
+      {/* Tab Navigation Controls */}
+      <div className="grid grid-cols-3 gap-2 bg-black/30 p-1.5 rounded-2xl border border-white/10">
+        <button
+          onClick={() => setActiveTab('buying_now')}
+          className={`py-2 px-2 text-xs font-bold rounded-xl transition-all ${
+            activeTab === 'buying_now'
+              ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/50'
+              : 'text-white/60 hover:text-white hover:bg-white/5'
+          }`}
+        >
+          <span className="flex items-center justify-center gap-1.5">
+            <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span>{t('marketplace.tabBuyingNow', { defaultValue: 'Amma Bitaa Jiru' })}</span>
+          </span>
+        </button>
 
-          <Select
-            label="Buyer type"
-            name="tier"
-            value={tier}
-            onChange={(e) => setTier(e.target.value as '' | BuyerTier)}
-          >
-            <option value="">All buyer types</option>
-            <option value="local_collector">Local collectors</option>
-            <option value="city_merchant">City merchants</option>
-            <option value="cooperative">Cooperatives</option>
-          </Select>
+        <button
+          onClick={() => setActiveTab('match')}
+          className={`py-2 px-2 text-xs font-bold rounded-xl transition-all ${
+            activeTab === 'match'
+              ? 'bg-agrilink-gold text-agrilink-green-dark shadow-lg shadow-amber-900/50'
+              : 'text-white/60 hover:text-white hover:bg-white/5'
+          }`}
+        >
+          <span>⚡ {t('marketplace.tabMatch', { defaultValue: 'Wal-Simsiisi' })}</span>
+        </button>
 
-          <label className="flex items-center gap-2 text-sm text-white/70">
-            <input
-              type="checkbox"
-              checked={verifiedOnly}
-              onChange={(e) => setVerifiedOnly(e.target.checked)}
-              className="h-4 w-4 accent-agrilink-gold"
-            />
-            Verified buyers only
-          </label>
-        </div>
-      </Card>
+        <button
+          onClick={() => setActiveTab('browse')}
+          className={`py-2 px-2 text-xs font-bold rounded-xl transition-all ${
+            activeTab === 'browse'
+              ? 'bg-white/20 text-white shadow'
+              : 'text-white/60 hover:text-white hover:bg-white/5'
+          }`}
+        >
+          <span>📋 {t('marketplace.tabBrowse', { defaultValue: 'Daldaltoota Mara' })}</span>
+        </button>
+      </div>
 
-      {loadError && <Alert variant="error">{loadError}</Alert>}
+      {/* Tab 1: Live "Buying Now" Stream */}
+      {activeTab === 'buying_now' && (
+        <div className="space-y-4 animate-in fade-in">
+          <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-950/70 via-agrilink-green-dark to-emerald-950/70 border border-emerald-500/30">
+            <h2 className="text-sm font-bold text-emerald-300 flex items-center gap-2">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
+              </span>
+              {t('marketplace.buyingNowHeading', {
+                defaultValue: 'Daldaltoota Har\'a Gabaa Keessatti Midhaan Bitaa Jiran',
+              })}
+            </h2>
+            <p className="text-xs text-white/70 mt-1">
+              {t('marketplace.buyingNowSub', {
+                defaultValue: 'Jimma Zone qofa keessatti: Daldaltoota har\'a bakka dhiheessaatti argaman argisiisa.',
+              })}
+            </p>
+          </div>
 
-      {demands === null && !loadError && (
-        <div className="flex justify-center py-6">
-          <span
-            className="h-6 w-6 rounded-full border-2 border-white/30 border-t-agrilink-gold animate-spin"
-            aria-label="Loading"
-          />
+          {buyingNowDemands === null ? (
+            <div className="flex justify-center py-8">
+              <span className="h-6 w-6 rounded-full border-2 border-white/30 border-t-emerald-400 animate-spin" />
+            </div>
+          ) : buyingNowDemands.length === 0 ? (
+            <Card>
+              <p className="text-center text-white/60 text-sm py-6">
+                {"Yeroo ammaa daldalaan gabaatti bitaa jiru hin jiru. Maaloo sa'aatii gabaatti deebi'aa ilaalaa."}
+              </p>
+            </Card>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-xs text-white/40 font-mono">
+                {buyingNowDemands.length} {t('marketplace.activeToday', { defaultValue: 'daldaltoota har\'a bitaa jiran' })}
+              </p>
+              {buyingNowDemands.map((d) => (
+                <BuyerDemandCard key={d.id} demand={d} onConnected={loadBuyingNow} />
+              ))}
+            </div>
+          )}
         </div>
       )}
 
-      {demands && demands.length === 0 && (
-        <Card>
-          <p className="text-white/60 text-sm text-center py-4">
-            No buyers are actively buying that right now. Try removing a filter, or check back
-            — buyers update this as their needs change.
-          </p>
-        </Card>
+      {/* Tab 2: Flagship Produce Matching Engine */}
+      {activeTab === 'match' && (
+        <div className="animate-in fade-in">
+          <ProduceMatchEngine />
+        </div>
       )}
 
-      {demands && demands.length > 0 && (
-        <div className="space-y-3" aria-live="polite">
-          <p className="text-xs text-white/40">
-            {demands.length} buyer{demands.length === 1 ? '' : 's'} actively buying
-          </p>
-          {demands.map((d) => (
-            <DemandCard key={d.id} demand={d} />
-          ))}
+      {/* Tab 3: All Wanted-to-Buy Listings Browser */}
+      {activeTab === 'browse' && (
+        <div className="space-y-4 animate-in fade-in">
+          <Card>
+            <div className="space-y-3">
+              <Select
+                label={t('terms.crop', { defaultValue: 'Midhaan' })}
+                name="cropId"
+                value={cropId}
+                onChange={(e) => setCropId(e.target.value)}
+              >
+                <option value="">{t('marketplace.allCrops', { defaultValue: 'Midhaan hunda' })}</option>
+                {(crops ?? []).map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {locale === 'om' ? `${c.nameAfaanOromoo || c.name} (${c.name})` : c.name}
+                  </option>
+                ))}
+              </Select>
+
+              <Select
+                label={t('marketplace.buyerType', { defaultValue: 'Gosa Daldalaa' })}
+                name="tier"
+                value={tier}
+                onChange={(e) => setTier(e.target.value as '' | BuyerTier)}
+              >
+                <option value="">{t('marketplace.allBuyerTypes', { defaultValue: 'Gosa hunda' })}</option>
+                <option value="local_collector">Sassaabaa Gandaa (Village Collector)</option>
+                <option value="wholesaler">Daldalaa Guddaa (Wholesaler)</option>
+                <option value="exporter">Ergaa Bunaa (Coffee Exporter)</option>
+                <option value="processor">Warshaa Qophii (Agro-Processor)</option>
+                <option value="cooperative">Gamtaa Qonnaan Bulaa (Cooperative)</option>
+              </Select>
+
+              <label className="flex items-center gap-2 text-sm text-white/80 cursor-pointer pt-1">
+                <input
+                  type="checkbox"
+                  checked={verifiedOnly}
+                  onChange={(e) => setVerifiedOnly(e.target.checked)}
+                  className="h-4 w-4 accent-agrilink-gold rounded"
+                />
+                <span>{t('marketplace.verifiedOnly', { defaultValue: 'Daldaltoota mirkanaa\'an qofa' })}</span>
+              </label>
+            </div>
+          </Card>
+
+          {loadError && <Alert variant="error">{loadError}</Alert>}
+
+          {demands === null && !loadError && (
+            <div className="flex justify-center py-8">
+              <span className="h-6 w-6 rounded-full border-2 border-white/30 border-t-agrilink-gold animate-spin" />
+            </div>
+          )}
+
+          {demands && demands.length === 0 && (
+            <Card>
+              <p className="text-white/60 text-sm text-center py-6">
+                Filannoo kanaan daldalaan bitaa jiru hin argamne.
+              </p>
+            </Card>
+          )}
+
+          {demands && demands.length > 0 && (
+            <div className="space-y-3">
+              <p className="text-xs text-white/40 font-mono">
+                {demands.length} {t('marketplace.postingsCount', { defaultValue: 'beeksisa gurgurtaa argame' })}
+              </p>
+              {demands.map((d) => (
+                <BuyerDemandCard key={d.id} demand={d} onConnected={loadDemands} />
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -187,20 +234,34 @@ function MarketplaceBrowser() {
 }
 
 export default function MarketplacePage() {
+  const { t } = useTranslation();
+
   return (
     <RequireAuth>
-      <main className="min-h-screen bg-agrilink-green-dark px-6 py-10">
-        <div className="mx-auto w-full max-w-md space-y-6">
-          <div>
-            <Link href="/app" className="text-sm text-white/50">
-              ← Back
+      <main className="min-h-screen bg-agrilink-green-dark px-4 py-8 sm:px-6">
+        <div className="mx-auto w-full max-w-xl space-y-6">
+          <div className="flex items-center justify-between">
+            <Link
+              href="/app"
+              className="text-xs font-semibold text-white/60 hover:text-white transition-colors"
+            >
+              ← {t('actions.back', { defaultValue: 'Duubatti' })}
             </Link>
-            <h1 className="text-xl font-bold text-white mt-1">Buyers looking to buy</h1>
-            <p className="text-xs text-white/50">
-              Only buyers who are actively buying right now are shown
+            <LanguageSwitcher />
+          </div>
+
+          <div>
+            <h1 className="text-2xl font-black text-white tracking-tight">
+              {t('marketplace.title', { defaultValue: 'Gabaa Bituu · Jimma Zone' })}
+            </h1>
+            <p className="text-xs text-white/60 mt-1">
+              {t('marketplace.subtitle', {
+                defaultValue: 'Daldaltoota mirkanaa\'an fi amma bitaa jiran waliin kallattiin wal-qunnamaa.',
+              })}
             </p>
           </div>
-          <MarketplaceBrowser />
+
+          <MarketplaceContent />
         </div>
       </main>
     </RequireAuth>
