@@ -1,413 +1,123 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import '../models/notification_model.dart';
+import '../models/notification_record.dart';
 import '../services/notification_service.dart';
 
-/// NotificationProvider - State management for notifications
+/// Phase 3 NotificationProvider - Simplified for Phase 3 implementation
 /// 
 /// Provides reactive access to NotificationService with:
-/// - Loading states
-/// - Error handling
-/// - Automatic UI updates via ChangeNotifier
-/// - Real-time notification streams
+/// - Notification history
 /// - Unread count tracking
+/// - Mark as read functionality
 class NotificationProvider with ChangeNotifier {
   final NotificationService _notificationService = NotificationService();
 
-  List<AppNotification> _notifications = [];
-  List<AppNotification> _filteredNotifications = [];
+  List<NotificationRecord> _notifications = [];
   int _unreadCount = 0;
-  bool _isLoading = false;
-  String? _error;
-  StreamSubscription<AppNotification>? _notificationSubscription;
+  bool _isInitialized = false;
+  StreamSubscription<NotificationRecord>? _notificationSubscription;
+  StreamSubscription<int>? _badgeCountSubscription;
 
   // Getters
-  List<AppNotification> get notifications => _notifications;
-  List<AppNotification> get filteredNotifications => _filteredNotifications;
+  List<NotificationRecord> get notifications => _notifications;
   int get unreadCount => _unreadCount;
-  bool get isLoading => _isLoading;
-  String? get error => _error;
-  bool get hasError => _error != null;
-  bool get isEmpty => _filteredNotifications.isEmpty && !_isLoading;
-  bool get hasUnread => _unreadCount > 0;
+  bool get isInitialized => _isInitialized;
+  bool get isLoading => !_isInitialized;
 
-  /// Initialize provider and load data
-  Future<void> initialize({String? userId}) async {
-    await _setLoading(true);
+  /// Initialize provider and load notification history
+  Future<void> initialize() async {
     try {
       await _notificationService.initialize();
       
-      // Subscribe to notification stream
-      _notificationSubscription = _notificationService.notificationStream.listen(
-        (notification) {
-          // Add new notification to list
-          _notifications.insert(0, notification);
-          _filteredNotifications.insert(0, notification);
-          _updateUnreadCount();
-          notifyListeners();
-        },
-      );
-
-      if (userId != null) {
-        await loadNotificationsForUser(userId);
-      }
+      _notificationSubscription = _notificationService.notificationStream.listen((notification) {
+        _notifications.insert(0, notification);
+        if (!notification.read) {
+          _unreadCount++;
+        }
+        notifyListeners();
+      });
+      
+      _badgeCountSubscription = _notificationService.badgeCountStream.listen((count) {
+        _unreadCount = count;
+        notifyListeners();
+      });
+      
+      await _loadNotificationHistory();
+      
+      _isInitialized = true;
+      notifyListeners();
     } catch (e) {
-      _setError('Failed to initialize notifications: $e');
-    } finally {
-      await _setLoading(false);
+      print('[NotificationProvider] Initialization error: $e');
     }
   }
 
-  /// Load notifications for a specific user
-  Future<void> loadNotificationsForUser(String userId) async {
-    await _setLoading(true);
+  /// Load notification history from service
+  Future<void> _loadNotificationHistory() async {
     try {
-      _notifications = _notificationService.getNotificationsForUser(userId);
-      _filteredNotifications = _notifications;
-      _updateUnreadCount();
-      _clearError();
+      _notifications = await _notificationService.getNotificationHistory();
+      _unreadCount = await _notificationService.getUnreadCount();
+      notifyListeners();
     } catch (e) {
-      _setError('Failed to load notifications: $e');
-    } finally {
-      await _setLoading(false);
-    }
-  }
-
-  /// Load unread notifications
-  Future<void> loadUnreadNotifications(String userId) async {
-    await _setLoading(true);
-    try {
-      _notifications = _notificationService.getUnreadNotifications(userId);
-      _filteredNotifications = _notifications;
-      _updateUnreadCount();
-      _clearError();
-    } catch (e) {
-      _setError('Failed to load unread notifications: $e');
-    } finally {
-      await _setLoading(false);
-    }
-  }
-
-  /// Load recent notifications
-  Future<void> loadRecentNotifications(String userId, {int limit = 10}) async {
-    await _setLoading(true);
-    try {
-      _notifications = _notificationService.getRecentNotifications(userId, limit: limit);
-      _filteredNotifications = _notifications;
-      _updateUnreadCount();
-      _clearError();
-    } catch (e) {
-      _setError('Failed to load recent notifications: $e');
-    } finally {
-      await _setLoading(false);
-    }
-  }
-
-  /// Send order notification
-  Future<bool> sendOrderNotification({
-    required String userId,
-    required String orderId,
-    required String title,
-    required String message,
-    NotificationPriority priority = NotificationPriority.normal,
-  }) async {
-    try {
-      await _notificationService.sendOrderNotification(
-        userId: userId,
-        orderId: orderId,
-        title: title,
-        message: message,
-        priority: priority,
-      );
-      // No need to reload - stream will update
-      _clearError();
-      return true;
-    } catch (e) {
-      _setError('Failed to send order notification: $e');
-      return false;
-    }
-  }
-
-  /// Send transport notification
-  Future<bool> sendTransportNotification({
-    required String userId,
-    required String tripId,
-    required String title,
-    required String message,
-    NotificationPriority priority = NotificationPriority.normal,
-  }) async {
-    try {
-      await _notificationService.sendTransportNotification(
-        userId: userId,
-        tripId: tripId,
-        title: title,
-        message: message,
-        priority: priority,
-      );
-      _clearError();
-      return true;
-    } catch (e) {
-      _setError('Failed to send transport notification: $e');
-      return false;
-    }
-  }
-
-  /// Send produce notification
-  Future<bool> sendProduceNotification({
-    required String userId,
-    required String produceId,
-    required String title,
-    required String message,
-    NotificationPriority priority = NotificationPriority.normal,
-  }) async {
-    try {
-      await _notificationService.sendProduceNotification(
-        userId: userId,
-        produceId: produceId,
-        title: title,
-        message: message,
-        priority: priority,
-      );
-      _clearError();
-      return true;
-    } catch (e) {
-      _setError('Failed to send produce notification: $e');
-      return false;
-    }
-  }
-
-  /// Send system notification
-  Future<bool> sendSystemNotification({
-    required String userId,
-    required String title,
-    required String message,
-    NotificationPriority priority = NotificationPriority.high,
-  }) async {
-    try {
-      await _notificationService.sendSystemNotification(
-        userId: userId,
-        title: title,
-        message: message,
-        priority: priority,
-      );
-      _clearError();
-      return true;
-    } catch (e) {
-      _setError('Failed to send system notification: $e');
-      return false;
+      print('[NotificationProvider] Error loading history: $e');
     }
   }
 
   /// Mark notification as read
-  Future<bool> markAsRead(String notificationId) async {
+  Future<void> markAsRead(String notificationId) async {
     try {
       await _notificationService.markAsRead(notificationId);
       
-      // Update local list
+      // Update local state
       final index = _notifications.indexWhere((n) => n.id == notificationId);
-      if (index != -1) {
-        final notification = _notifications[index];
-        _notifications[index] = notification.copyWith(
-          isRead: true,
-          readAt: DateTime.now(),
-        );
-        
-        final filteredIndex = _filteredNotifications.indexWhere((n) => n.id == notificationId);
-        if (filteredIndex != -1) {
-          _filteredNotifications[filteredIndex] = _notifications[index];
-        }
+      if (index != -1 && !_notifications[index].read) {
+        _notifications[index] = _notifications[index].copyWith(read: true);
+        _unreadCount = (_unreadCount - 1).clamp(0, 999);
+        notifyListeners();
       }
-      
-      _updateUnreadCount();
-      _clearError();
-      notifyListeners();
-      return true;
     } catch (e) {
-      _setError('Failed to mark notification as read: $e');
-      return false;
+      print('[NotificationProvider] Error marking as read: $e');
     }
   }
 
   /// Mark all notifications as read
-  Future<bool> markAllAsRead(String userId) async {
+  Future<void> markAllAsRead() async {
     try {
-      await _notificationService.markAllAsRead(userId);
+      await _notificationService.markAllAsRead();
       
-      // Update local lists
-      _notifications = _notifications.map((n) {
-        if (n.userId == userId && !n.isRead) {
-          return n.copyWith(isRead: true, readAt: DateTime.now());
-        }
-        return n;
-      }).toList();
-      
-      _filteredNotifications = _filteredNotifications.map((n) {
-        if (n.userId == userId && !n.isRead) {
-          return n.copyWith(isRead: true, readAt: DateTime.now());
-        }
-        return n;
-      }).toList();
-      
-      _updateUnreadCount();
-      _clearError();
+      // Update local state
+      _notifications = _notifications.map((n) => n.copyWith(read: true)).toList();
+      _unreadCount = 0;
       notifyListeners();
-      return true;
     } catch (e) {
-      _setError('Failed to mark all as read: $e');
+      print('[NotificationProvider] Error marking all as read: $e');
+    }
+  }
+
+  /// Handle notification tap - delegate to service
+  Future<bool> handleNotificationTap(String notificationId) async {
+    try {
+      final result = await _notificationService.handleNotificationTap(notificationId);
+      await _loadNotificationHistory(); // Reload to update read status
+      return result;
+    } catch (e) {
+      print('[NotificationProvider] Error handling notification tap: $e');
       return false;
     }
   }
 
-  /// Delete notification
-  Future<bool> deleteNotification(String notificationId) async {
-    try {
-      await _notificationService.deleteNotification(notificationId);
-      
-      _notifications.removeWhere((n) => n.id == notificationId);
-      _filteredNotifications.removeWhere((n) => n.id == notificationId);
-      _updateUnreadCount();
-      _clearError();
-      notifyListeners();
-      return true;
-    } catch (e) {
-      _setError('Failed to delete notification: $e');
-      return false;
-    }
+  // Legacy compatibility methods
+  Future<void> loadUserNotifications() async {
+    await _loadNotificationHistory();
+  }
+  
+  Future<void> deleteNotification(String notificationId) async {
+    await markAsRead(notificationId);
   }
 
-  /// Delete all notifications for user
-  Future<bool> deleteAllNotifications(String userId) async {
-    try {
-      await _notificationService.deleteAllNotifications(userId);
-      
-      _notifications.removeWhere((n) => n.userId == userId);
-      _filteredNotifications.removeWhere((n) => n.userId == userId);
-      _updateUnreadCount();
-      _clearError();
-      notifyListeners();
-      return true;
-    } catch (e) {
-      _setError('Failed to delete all notifications: $e');
-      return false;
-    }
-  }
-
-  /// Delete read notifications
-  Future<bool> deleteReadNotifications(String userId) async {
-    try {
-      await _notificationService.deleteReadNotifications(userId);
-      
-      _notifications.removeWhere((n) => n.userId == userId && n.isRead);
-      _filteredNotifications.removeWhere((n) => n.userId == userId && n.isRead);
-      _updateUnreadCount();
-      _clearError();
-      notifyListeners();
-      return true;
-    } catch (e) {
-      _setError('Failed to delete read notifications: $e');
-      return false;
-    }
-  }
-
-  /// Delete old notifications (older than specified days)
-  Future<bool> deleteOldNotifications(String userId, {int olderThanDays = 30}) async {
-    try {
-      await _notificationService.deleteOldNotifications(userId, olderThanDays: olderThanDays);
-      
-      final cutoffDate = DateTime.now().subtract(Duration(days: olderThanDays));
-      _notifications.removeWhere((n) => n.userId == userId && n.createdAt.isBefore(cutoffDate));
-      _filteredNotifications.removeWhere((n) => n.userId == userId && n.createdAt.isBefore(cutoffDate));
-      _updateUnreadCount();
-      _clearError();
-      notifyListeners();
-      return true;
-    } catch (e) {
-      _setError('Failed to delete old notifications: $e');
-      return false;
-    }
-  }
-
-  /// Filter notifications by type
-  void filterByType(NotificationType type) {
-    _filteredNotifications = _notifications
-        .where((n) => n.type == type)
-        .toList();
-    notifyListeners();
-  }
-
-  /// Filter notifications by priority
-  void filterByPriority(NotificationPriority priority) {
-    _filteredNotifications = _notifications
-        .where((n) => n.priority == priority)
-        .toList();
-    notifyListeners();
-  }
-
-  /// Filter notifications by read status
-  void filterByReadStatus(bool isRead) {
-    _filteredNotifications = _notifications
-        .where((n) => n.isRead == isRead)
-        .toList();
-    notifyListeners();
-  }
-
-  /// Clear filters
-  void clearFilters() {
-    _filteredNotifications = _notifications;
-    notifyListeners();
-  }
-
-  /// Get notification statistics
-  Map<String, dynamic> getStatistics(String userId) {
-    return _notificationService.getNotificationStatistics(userId);
-  }
-
-  /// Get notification by ID
-  AppNotification? getNotificationById(String notificationId) {
-    return _notificationService.getNotificationById(notificationId);
-  }
-
-  // Private helpers
-  void _updateUnreadCount() {
-    _unreadCount = _notifications.where((n) => !n.isRead).length;
-  }
-
-  Future<void> _setLoading(bool value) async {
-    _isLoading = value;
-    notifyListeners();
-  }
-
-  void _setError(String error) {
-    _error = error;
-    notifyListeners();
-  }
-
-  void _clearError() {
-    _error = null;
-  }
-
-  /// Reload mock data (for testing)
-  Future<void> reloadMockData() async {
-    await _setLoading(true);
-    try {
-      await _notificationService.reloadMockData();
-      await loadNotificationsForUser('farmer_001'); // Default test user
-    } finally {
-      await _setLoading(false);
-    }
-  }
-  /// Load notifications for a specific user
-  Future<void> loadUserNotifications(String userId) async {
-    _isLoading = true;
-    notifyListeners();
-    try {
-      _notifications = _notificationService.getNotificationsForUser(userId);
-      _error = null;
-    } catch (e) {
-      _error = 'Failed to load notifications: $e';
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
+  @override
+  void dispose() {
+    _notificationSubscription?.cancel();
+    _badgeCountSubscription?.cancel();
+    super.dispose();
   }
 }
