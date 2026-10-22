@@ -1,12 +1,15 @@
-import 'package:flutter/material.dart';
+import '../navigation/navigation_service.dart';
 
 class DeepLinkService {
   static final DeepLinkService _instance = DeepLinkService._internal();
   factory DeepLinkService() => _instance;
   DeepLinkService._internal();
 
+  // Deep link scheme constant
   static const String scheme = 'agrolink';
-  static GlobalKey<NavigatorState>? navigatorKey;
+  
+  // NavigationService dependency
+  final NavigationService _navigationService = NavigationService();
 
   Future<DeepLinkResult> parseDeepLink(String deepLink) async {
     try {
@@ -48,7 +51,7 @@ class DeepLinkService {
     final result = await parseDeepLink(deepLink);
     
     if (!result.valid) {
-      navigatorKey?.currentState?.pushNamedAndRemoveUntil('/', (route) => false);
+      _navigationService.navigateToAndClearStack('/');
       return false;
     }
 
@@ -59,34 +62,34 @@ class DeepLinkService {
       if (route.startsWith('order/detail')) {
         final orderId = params['orderId'];
         if (orderId != null) {
-          navigatorKey?.currentState?.pushNamed('/order/detail', arguments: orderId);
+          _navigationService.navigateTo('/order/detail', arguments: orderId);
           return true;
         }
       } else if (route.startsWith('transport/track')) {
         final tripId = params['tripId'];
         if (tripId != null) {
-          navigatorKey?.currentState?.pushNamed('/transport/track', arguments: tripId);
+          _navigationService.navigateTo('/transport/track', arguments: tripId);
           return true;
         }
       } else if (route.startsWith('produce/detail')) {
         final produceId = params['produceId'];
         if (produceId != null) {
-          navigatorKey?.currentState?.pushNamed('/produce/detail', arguments: produceId);
+          _navigationService.navigateTo('/produce/detail', arguments: produceId);
           return true;
         }
       } else if (route.startsWith('market/list')) {
         final marketId = params['marketId'];
-        navigatorKey?.currentState?.pushNamed('/market/list', arguments: marketId);
+        _navigationService.navigateTo('/market/list', arguments: marketId);
         return true;
       } else if (route.startsWith('profile/farms')) {
-        navigatorKey?.currentState?.pushNamed('/profile/farms');
+        _navigationService.navigateTo('/profile/farms');
         return true;
       }
 
-      navigatorKey?.currentState?.pushNamedAndRemoveUntil('/', (route) => false);
+      _navigationService.navigateToAndClearStack('/');
       return false;
     } catch (e) {
-      navigatorKey?.currentState?.pushNamedAndRemoveUntil('/', (route) => false);
+      _navigationService.navigateToAndClearStack('/');
       return false;
     }
   }
