@@ -28,8 +28,43 @@ agrilink/
 │   └── web/             # Next.js web application
 └── lib/                 # Flutter mobile application
 ├── core/            # Localization (om, am, en), themes, shared widgets
+│   └── widgets/     # Reusable UI components (see Component Usage Guide)
 └── features/        # Home, Market Intel, Marketplace, Orders, Profile
 
+
+---
+
+## 🎨 UI Components & Design System
+
+AgriLink follows the **Agricultural Earth-Tone Design System** with reusable components:
+
+### Available Components
+- **AgriButton** - Primary, secondary, and text button variants
+- **DashboardCard** - Cards for dashboard items with icons and subtitles
+- **ActionCard** - Highlighted action cards for primary user tasks
+- **StatisticCard** - Metric cards with trend indicators
+- **AgriTextField** - Form inputs with validation
+- **AgriDropdown** - Dropdown selectors with validation
+- **RoleBadge** - Role-specific color-coded badges
+
+### Component Examples & Demo
+
+All components include usage examples and comprehensive documentation:
+
+```dart
+// View all components in action
+Navigator.push(
+  context,
+  MaterialPageRoute(
+    builder: (context) => ComponentsDemoScreen(),
+  ),
+);
+```
+
+**Documentation:**
+- **Component Usage Guide:** `lib/core/widgets/COMPONENT_USAGE_GUIDE.md`
+- **Example Files:** Each component has a corresponding `*_example.dart` file
+- **Demo Screen:** `lib/core/widgets/components_demo_screen.dart`
 
 ---
 
