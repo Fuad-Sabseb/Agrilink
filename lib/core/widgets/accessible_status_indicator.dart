@@ -41,7 +41,7 @@ class AccessibleStatusIndicator extends StatelessWidget {
   factory AccessibleStatusIndicator.info({String? label}) {
     return AccessibleStatusIndicator(
       status: label ?? 'Info',
-      color: AppColors.tertiary,
+      color: AppColors.tertiaryDark,
       icon: Icons.info,
     );
   }
