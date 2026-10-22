@@ -186,4 +186,6 @@ class FarmerRoutes {
   static const String addFarm = '/farmer/add_farm';
   static const String createTransportRequest = '/farmer/create_transport_request';
   static const String transportRequestDetail = '/farmer/transport_request_detail';
+  static const String marketplace = '/marketplace';
+  static const String marketIntelligence = '/market/intelligence';
 }
