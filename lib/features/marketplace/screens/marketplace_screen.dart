@@ -363,7 +363,7 @@ class _MarketplaceScreenState extends State<MarketplaceScreen>
                     child: Text(
                       demand.status.displayName,
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
