@@ -1,0 +1,29 @@
+{
+  "title": "የት መሸጥ አለብኝ?",
+  "subtitle": "የጥሬ ገበያ ዋጋን ብቻ ሳይሆን የመጓጓዣ ወጪ ተቀንሶ የሚገኘውን የተጣራ ትርፍ ያሰላል።",
+  "selectFarm": "እርሻ ይምረጡ",
+  "selectCrop": "ሰብል ይምረጡ",
+  "enterQuantity": "መጠን (ኪ.ግ)",
+  "calculateButton": "የት መሸጥ እንዳለብኝ አስላ",
+  "calculatingButton": "በማስላት ላይ...",
+  "bestNetReturn": "ከፍተኛ የተጣራ ትርፍ",
+  "tiedWithBest": "ከተመረጠው ጋር እኩል",
+  "lossWarning": "የመጓጓዣ ወጪው ከሚገኘው ገቢ ስለሚበልጥ በዚህ ገበያ መሸጥ ኪሳራ ያስከትላል።",
+  "betterThanNext": "ከሚቀጥለው ገበያ በ {amount} ብር የተሻለ ትርፍ ያስገኛል።",
+  "audioScriptTemplate": "የተመረጠው ገበያ {market} ነው። {quantity} ኪሎ {crop} ሲሸጡ፣ የተጣራ ገቢ {netRevenue} ብር ያገኛሉ። የመጓጓዣ ወጪ {transportCost} ብር ነው።",
+  "calculationBreakdown": {
+    "title": "የገቢና ወጪ ስሌት ዝርዝር",
+    "grossRevenue": "አጠቃላይ ገቢ",
+    "atRate": "በኪሎ {price} ብር",
+    "transportCost": "የመጓጓዣ ወጪ",
+    "transitFee": "የፍተሻ እና የትራንዚት ክፍያ",
+    "estimatedNetRevenue": "የተገመተ የተጣራ ገቢ",
+    "netPerKg": "በአንድ ኪሎ {rate} ብር የተጣራ"
+  },
+  "noResult": {
+    "title": "የመሸጫ ምክረ-ሀሳብ አልተገኘም",
+    "body": "በአካባቢዎ ባሉ ገበያዎች ለዚህ ሰብል የተመዘገበ ዋጋ ወይም የመጓጓዣ መስመር አልተዘጋጀም።",
+    "action": "የእርሻ ቦታ ያዘጋጁ"
+  },
+  "disclaimer": "ይህ ግምት ብቻ ነው — ትክክለኛው ዋጋ እና ወጪ በሽያጭ ቀን ሊለያይ ይችላል።"
+}

@@ -1,0 +1,29 @@
+{
+  "title": "Where Should I Sell?",
+  "subtitle": "Computes net-of-transport revenue so you know your true take-home birr before committing.",
+  "selectFarm": "Select farm",
+  "selectCrop": "Select crop",
+  "enterQuantity": "Quantity (kg)",
+  "calculateButton": "Where should I sell?",
+  "calculatingButton": "Calculating…",
+  "bestNetReturn": "BEST ESTIMATED NET RETURN",
+  "tiedWithBest": "TIED WITH BEST",
+  "lossWarning": "Transport cost exceeds gross revenue — selling here would result in a net loss.",
+  "betterThanNext": "{amount} ETB better than the next option.",
+  "audioScriptTemplate": "The recommended market is {market}. For {quantity} kg of {crop}, your estimated net revenue is {netRevenue} Birr, with transport cost of {transportCost} Birr.",
+  "calculationBreakdown": {
+    "title": "Calculation Breakdown",
+    "grossRevenue": "Gross revenue",
+    "atRate": "at {price} ETB/kg",
+    "transportCost": "Transport cost",
+    "transitFee": "Transit / logistics fee",
+    "estimatedNetRevenue": "Estimated net revenue",
+    "netPerKg": "{rate} ETB per kg net"
+  },
+  "noResult": {
+    "title": "No recommendation available",
+    "body": "No recorded prices or transport routes are configured for this crop in your area yet.",
+    "action": "Set Farm Location"
+  },
+  "disclaimer": "Estimates only — actual costs and prices on the day may differ."
+}

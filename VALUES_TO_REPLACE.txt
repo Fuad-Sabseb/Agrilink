@@ -1,0 +1,171 @@
+═══════════════════════════════════════════════════════════════════════════
+                    VALUES YOU NEED TO REPLACE
+═══════════════════════════════════════════════════════════════════════════
+
+🔴 CRITICAL (MUST CHANGE BEFORE PRODUCTION)
+───────────────────────────────────────────────────────────────────────────
+
+1. Debug Mode Toggle
+   File: lib/main.dart
+   Line: 59
+   
+   FIND:    const bool kDebugBypassAuth = true;
+   REPLACE: const bool kDebugBypassAuth = false;
+   
+   ⚠️ MUST be false in production or anyone can access the app!
+
+───────────────────────────────────────────────────────────────────────────
+
+🟠 HIGH PRIORITY (REQUIRED FOR DEPLOYMENT)
+───────────────────────────────────────────────────────────────────────────
+
+2. Staging API URL
+   File: lib/core/config/api_config.dart
+   Line: 14
+   
+   FIND:    'staging': 'https://staging-api.agrolink.et/v1',
+   REPLACE: 'staging': 'https://YOUR-STAGING-SERVER.com/api/v1',
+   
+   Example: 'staging': 'https://staging-api.yourcompany.com/v1',
+
+───────────────────────────────────────────────────────────────────────────
+
+3. Production API URL
+   File: lib/core/config/api_config.dart
+   Line: 15
+   
+   FIND:    'production': 'https://api.agrolink.et/v1',
+   REPLACE: 'production': 'https://YOUR-PRODUCTION-SERVER.com/api/v1',
+   
+   Example: 'production': 'https://api.yourcompany.com/v1',
+
+───────────────────────────────────────────────────────────────────────────
+
+4. Google Maps API Key (Android)
+   File: android/app/src/main/AndroidManifest.xml
+   
+   ADD before </application>:
+   <meta-data
+       android:name="com.google.android.geo.API_KEY"
+       android:value="AIzaSy___YOUR_GOOGLE_MAPS_KEY_HERE___"/>
+
+───────────────────────────────────────────────────────────────────────────
+
+5. Google Maps API Key (iOS)
+   File: ios/Runner/AppDelegate.swift
+   
+   ADD in application function:
+   GMSServices.provideAPIKey("AIzaSy___YOUR_GOOGLE_MAPS_KEY_HERE___")
+
+───────────────────────────────────────────────────────────────────────────
+
+6. Google Maps API Key (Web)
+   File: web/index.html
+   
+   ADD in <head> section:
+   <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSy___YOUR_KEY___"></script>
+
+───────────────────────────────────────────────────────────────────────────
+
+🟡 MEDIUM PRIORITY (RECOMMENDED)
+───────────────────────────────────────────────────────────────────────────
+
+7. Android Package Name
+   File: android/app/build.gradle
+   
+   FIND:    applicationId "com.example.agrolink"
+   REPLACE: applicationId "et.agrolink.app"
+   
+   (Or use your own reverse domain: com.yourcompany.appname)
+
+───────────────────────────────────────────────────────────────────────────
+
+8. iOS Bundle Identifier
+   File: ios/Runner.xcodeproj/project.pbxproj
+   
+   FIND:    PRODUCT_BUNDLE_IDENTIFIER = com.example.agrolink;
+   REPLACE: PRODUCT_BUNDLE_IDENTIFIER = et.agrolink.app;
+   
+   (Must match Android package name)
+
+───────────────────────────────────────────────────────────────────────────
+
+🟢 OPTIONAL (CAN CUSTOMIZE)
+───────────────────────────────────────────────────────────────────────────
+
+9. Deep Link Scheme
+   File: lib/core/config/phase3_config.dart
+   Line: 18
+   
+   FIND:    static const String deepLinkScheme = 'agrolink';
+   REPLACE: static const String deepLinkScheme = 'yourappname';
+   
+   (Used for deep links like: agrolink://app/order/123)
+
+───────────────────────────────────────────────────────────────────────────
+
+10. App Version
+    File: pubspec.yaml
+    
+    FIND:    version: 1.0.0+1
+    REPLACE: version: 1.0.0+1
+    
+    (Increment for each release: 1.0.1+2, 1.0.2+3, etc.)
+
+───────────────────────────────────────────────────────────────────────────
+
+📋 FIREBASE CONFIGURATION (AUTOMATED)
+───────────────────────────────────────────────────────────────────────────
+
+Don't manually replace - run this command instead:
+
+  flutterfire configure --project=your-firebase-project-id
+
+This will automatically create:
+  - lib/firebase_options.dart (with all your Firebase keys)
+  - android/app/google-services.json
+  - ios/Runner/GoogleService-Info.plist
+
+───────────────────────────────────────────────────────────────────────────
+
+⚡ BACKEND CONFIGURATION (NOT IN APP)
+───────────────────────────────────────────────────────────────────────────
+
+Your backend server needs:
+
+backend/.env file:
+  FCM_SERVER_KEY=your_firebase_server_key_here
+  DATABASE_URL=your_database_connection_string
+  JWT_SECRET=your_jwt_secret_key
+
+(Get FCM_SERVER_KEY from Firebase Console → Cloud Messaging → Server Key)
+
+═══════════════════════════════════════════════════════════════════════════
+
+📝 QUICK CHECKLIST
+═══════════════════════════════════════════════════════════════════════════
+
+For Testing (Now):
+  ✅ No changes needed - debug mode is enabled
+
+For Staging:
+  [ ] Update staging API URL
+  [ ] Run flutterfire configure
+  [ ] Add Google Maps keys
+  [ ] Test on real devices
+
+For Production:
+  [ ] Set kDebugBypassAuth = false  ⚠️ CRITICAL!
+  [ ] Update production API URL
+  [ ] Configure Firebase
+  [ ] Add Google Maps keys
+  [ ] Update package name/bundle ID
+  [ ] Test authentication flow
+  [ ] Run flutter build --release
+
+═══════════════════════════════════════════════════════════════════════════
+
+Need detailed instructions? See CONFIGURATION_GUIDE.md
+Need quick reference? See QUICK_CONFIG_REFERENCE.md
+
+═══════════════════════════════════════════════════════════════════════════

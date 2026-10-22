@@ -1,0 +1,29 @@
+{
+  "title": "Eessatti Akkan Gurguru?",
+  "subtitle": "Gatii gabaa qofa osoo hin taane, baasii geejjibaa erga hir'ifamee booda galii qulqulluu shallaga.",
+  "selectFarm": "Lafa qonnaa filadhaa",
+  "selectCrop": "Midhaan filadhaa",
+  "enterQuantity": "Hamma (kg)",
+  "calculateButton": "Eessatti Akkan Gurguru Shallagi",
+  "calculatingButton": "Shallagaa jira...",
+  "bestNetReturn": "BU'AA QULQULLUU ISA CAALMAA",
+  "tiedWithBest": "ISA CAALU WALIN QIXA",
+  "lossWarning": "Baasiin geejjibaa gatii gurgurtaa waan caaluuf gabaa kanatti gurguruun kasaaraa qaba.",
+  "betterThanNext": "Gabaa itti aanu caalaa {amount} ETB caalmaa qaba.",
+  "audioScriptTemplate": "Gabaan filatamaan {market} dha. {crop} kiiloo {quantity} yoo gurgurtan, galii qulqulluu birrii {netRevenue} argattu. Baasiin geejjibaa birrii {transportCost} ta'a.",
+  "calculationBreakdown": {
+    "title": "Shallaggii Baasii fi Galii",
+    "grossRevenue": "Galii Waliigalaa",
+    "atRate": "kiiloo tokko {price} ETB",
+    "transportCost": "Baasii Geejjibaa",
+    "transitFee": "Kaffaltii Ce'umsaa / Sakkattaa'iinsaa",
+    "estimatedNetRevenue": "Galii Qulqulluu Tilmaamame",
+    "netPerKg": "kiiloo tokkoon galii {rate} ETB"
+  },
+  "noResult": {
+    "title": "Gorsi gurgurtaa hin argamne",
+    "body": "Gabaawwan naannoo keessan jiran keessaa gatiin midhaan kanaa hin jiru ykn daandiin geejjibaa hin qindeeffamne.",
+    "action": "Lafa Qonnaa Qindeessi"
+  },
+  "disclaimer": "Tilmaama qofaa dha — gatiin fi baasiin qabatamaa guyyaa gurgurtaa garaagarummaa qabaachuu danda'a."
+}
