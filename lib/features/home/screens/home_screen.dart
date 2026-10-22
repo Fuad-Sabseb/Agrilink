@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../../core/theme/colors.dart';
 import '../../../core/theme/typography.dart';
 import '../../../core/localization/app_localizations.dart';
 import '../../../core/widgets/dashboard_header.dart';
 import '../../../core/widgets/action_grid.dart';
+import '../../../core/providers/auth_provider.dart';
 
 /// Home Screen / Dashboard
 /// Main landing screen with KPI carousel, action grid, and quick access features
@@ -15,13 +17,41 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  UserRole _currentRole = UserRole.farmer;
+  @override
+  void initState() {
+    super.initState();
+    // Role is now read from AuthProvider dynamically
+  }
+
+  /// Get user role from AuthProvider
+  UserRole _getUserRole(BuildContext context) {
+    try {
+      final authProvider = context.read<AuthProvider>();
+      final roleString = authProvider.user?.role.toLowerCase() ?? 'farmer';
+      
+      switch (roleString) {
+        case 'buyer':
+          return UserRole.buyer;
+        case 'transporter':
+          return UserRole.transporter;
+        case 'bureau':
+        case 'bureau_officer':
+          return UserRole.bureau;
+        case 'farmer':
+        default:
+          return UserRole.farmer;
+      }
+    } catch (e) {
+      return UserRole.farmer; // Fallback
+    }
+  }
   String _selectedWoreda = 'Jimma Town';
   int _notificationCount = 3;
 
   @override
   Widget build(BuildContext context) {
     final localizations = AppLocalizations.of(context);
+    final currentRole = _getUserRole(context);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -29,7 +59,7 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           // Dashboard Header
           DashboardHeader(
-            currentRole: _currentRole,
+            currentRole: currentRole,
             selectedWoreda: _selectedWoreda,
             notificationCount: _notificationCount,
             onRoleTap: _showRoleSwitcher,
@@ -46,7 +76,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: 16),
                   
                   // Welcome Message
-                  _buildWelcomeSection(localizations),
+                  _buildWelcomeSection(localizations, currentRole),
                   
                   const SizedBox(height: 16),
                   
@@ -73,7 +103,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildWelcomeSection(AppLocalizations localizations) {
+  Widget _buildWelcomeSection(AppLocalizations localizations, UserRole currentRole) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
@@ -87,7 +117,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 4),
           Text(
-            _getRoleGreeting(localizations),
+            _getRoleGreeting(localizations, currentRole),
             style: AppTypography.bodyMedium.copyWith(
               color: AppColors.textSecondary,
             ),
@@ -342,8 +372,8 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  String _getRoleGreeting(AppLocalizations localizations) {
-    switch (_currentRole) {
+  String _getRoleGreeting(AppLocalizations localizations, UserRole role) {
+    switch (role) {
       case UserRole.farmer:
         return 'Track prices and find the best markets for your harvest';
       case UserRole.buyer:
@@ -353,6 +383,7 @@ class _HomeScreenState extends State<HomeScreen> {
       case UserRole.bureau:
         return 'Monitor agricultural activity and market trends';
     }
+    return 'Welcome to AgroLink'; // Fallback
   }
 
   void _showRoleSwitcher() {
