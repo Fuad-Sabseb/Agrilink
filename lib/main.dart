@@ -16,6 +16,8 @@ import 'core/providers/notification_provider.dart';
 import 'core/providers/location_provider.dart';
 import 'core/providers/farmer_provider.dart';
 import 'core/providers/buyer_provider.dart';
+import 'core/navigation/navigation_service.dart';
+
 import 'core/providers/cart_provider.dart';
 import 'core/providers/favorites_provider.dart';
 import 'core/providers/inspection_provider.dart'; // Phase 8
@@ -32,6 +34,8 @@ import 'core/services/background_location_service.dart';
 import 'core/models/farm_location.dart';
 import 'core/models/transport_trip_tracking.dart';
 import 'core/models/notification_rate_limit.dart';
+import 'core/models/notification_record.dart';
+import 'core/models/location_update.dart';
 import 'core/models/inspection_model.dart'; // Phase 8
 import 'core/models/inspection_operation_model.dart'; // Phase 8
 import 'core/models/transport_request_model.dart';
@@ -44,9 +48,16 @@ import 'models/logistics_model.dart';
 import 'models/user_model.dart';
 import 'core/models/cart_item.dart';
 import 'core/models/notification_model.dart';
+import 'core/models/notification_preference.dart';
 import 'routes/app_routes.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/onboarding_screen.dart';
+
+// ============================================================================
+// DEBUG MODE - Toggle this to skip onboarding and authentication for testing
+// ============================================================================
+const bool kDebugBypassAuth = false; // Set to false for production
+
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -93,6 +104,7 @@ void main() async {
   safeRegisterAdapter(CropTypeAdapter());
   safeRegisterAdapter(FarmLocationAdapter());
   safeRegisterAdapter(LocationSourceAdapter());
+  safeRegisterAdapter(LocationUpdateAdapter());
   safeRegisterAdapter(TransportTripTrackingAdapter());
   safeRegisterAdapter(TripStatusAdapter());
   safeRegisterAdapter(NotificationRateLimitAdapter());
@@ -105,6 +117,9 @@ void main() async {
   safeRegisterAdapter(AppNotificationAdapter());
   safeRegisterAdapter(NotificationTypeAdapter());
   safeRegisterAdapter(NotificationPriorityAdapter());
+  safeRegisterAdapter(NotificationRecordAdapter());
+  safeRegisterAdapter(NotificationRecordTypeAdapter());
+  safeRegisterAdapter(NotificationPreferenceAdapter());
 
   // Bureau inspection adapters
   safeRegisterAdapter(InspectionAdapter());
@@ -218,11 +233,11 @@ class AgriLinkApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => ProduceProvider()),
         ChangeNotifierProvider(create: (_) => OrderProvider()),
         ChangeNotifierProvider(create: (_) => TransportProvider()),
-        ChangeNotifierProvider(create: (_) => NotificationProvider()),
+        ChangeNotifierProvider(create: (_) => NotificationProvider()..initialize()),
         ChangeNotifierProvider(create: (_) => CartProvider()),
         ChangeNotifierProvider(create: (_) => FavoritesProvider()),
         // Phase 3: Location Provider
-        ChangeNotifierProvider(create: (_) => LocationProvider()),
+        ChangeNotifierProvider(create: (_) => LocationProvider()..initialize()),
         // Phase 4: Farmer Provider
         ChangeNotifierProvider(create: (_) => FarmerProvider()),
         // Phase 5: Buyer Provider
@@ -238,6 +253,7 @@ class AgriLinkApp extends StatelessWidget {
       ],
       child: Consumer2<ThemeProvider, LocaleProvider>(
         builder: (context, themeProvider, localeProvider, _) => MaterialApp(
+        navigatorKey: NavigationService().navigatorKey,
         title: 'AgriLink',
         debugShowCheckedModeBanner: false,
         
@@ -320,6 +336,18 @@ class _AppInitializerState extends State<AppInitializer> {
     
     if (!mounted) return;
     
+    
+    // =========================================================================
+    // DEBUG BYPASS MODE - Skip authentication for feature testing
+    // =========================================================================
+    if (kDebugBypassAuth) {
+      debugPrint(
+        "⚠️  DEBUG MODE ACTIVE: Bypassing authentication - routing to NavigationShell (Full Features)"
+      );
+      Navigator.pushReplacementNamed(context, AppRoutes.home);
+      return;
+    }
+    
     // Check onboarding status
     final completedOnboarding = await hasCompletedOnboarding();
     
@@ -340,24 +368,9 @@ class _AppInitializerState extends State<AppInitializer> {
       );
     } else {
       // Already authenticated - route based on role
-      final user = authProvider.user;
-      final role = user?.role.toLowerCase();
-      switch (role) {
-        case 'farmer':
-          Navigator.pushReplacementNamed(context, AppRoutes.farmerDashboard);
-          break;
-        case 'buyer':
-          Navigator.pushReplacementNamed(context, AppRoutes.buyerDashboard);
-          break;
-        case 'transporter':
-          Navigator.pushReplacementNamed(context, AppRoutes.transporterDashboard);
-          break;
-        case 'bureau_officer':
-          Navigator.pushReplacementNamed(context, AppRoutes.bureauDashboard);
-          break;
-        default:
-          Navigator.pushReplacementNamed(context, AppRoutes.home);
-      }
+      // Route all authenticated users to NavigationShell
+      // NavigationShell adapts UI based on user role automatically
+      Navigator.pushReplacementNamed(context, AppRoutes.home);
     }
   }
 
