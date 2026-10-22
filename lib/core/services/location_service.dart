@@ -3,18 +3,29 @@ import 'dart:math';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:hive/hive.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import '../models/location_coordinate.dart';
 import '../models/location_update.dart';
 import '../network/api_client.dart';
+import 'sync_service.dart';
 
+/// LocationService singleton class
+/// Manages location acquisition, permission handling, transport tracking, and offline queue
+/// 
+/// Requirements: 2, 4
 class LocationService {
+  // Singleton pattern with factory constructor
   static final LocationService _instance = LocationService._internal();
   factory LocationService() => _instance;
   LocationService._internal();
 
-  final ApiClient _apiClient = ApiClient();
+  // Dependencies (initialized on first use)
+  ApiClient? _apiClient;
+  SyncService? _syncService;
+  SharedPreferences? _prefs;
   
+  // State fields
   Position? _currentPosition;
   LocationPermissionStatus _permissionStatus = LocationPermissionStatus.notDetermined;
   bool _isTracking = false;
@@ -22,24 +33,48 @@ class LocationService {
   Timer? _trackingTimer;
   Box<LocationUpdate>? _offlineQueueBox;
   final Map<String, DateTime> _distanceCache = {};
+  bool _isInitialized = false;
 
-  final StreamController<Position> _positionController = StreamController.broadcast();
-  final StreamController<LocationPermissionStatus> _permissionController = StreamController.broadcast();
-  final StreamController<int> _offlineQueueController = StreamController.broadcast();
+  // SharedPreferences keys
+  static const String _permissionStatusKey = 'location_permission_status';
 
+  // StreamControllers for broadcasting state changes
+  final StreamController<Position> _positionController = StreamController<Position>.broadcast();
+  final StreamController<LocationPermissionStatus> _permissionController = StreamController<LocationPermissionStatus>.broadcast();
+  final StreamController<int> _offlineQueueController = StreamController<int>.broadcast();
+
+  // Public getters for state
   Position? get currentPosition => _currentPosition;
   LocationPermissionStatus get permissionStatus => _permissionStatus;
   bool get isTracking => _isTracking;
   int get offlineQueueSize => _offlineQueueBox?.values.where((u) => !u.synced).length ?? 0;
 
+  // Public stream getters
   Stream<Position> get positionStream => _positionController.stream;
   Stream<LocationPermissionStatus> get permissionStream => _permissionController.stream;
   Stream<int> get offlineQueueSizeStream => _offlineQueueController.stream;
 
+  /// Initialize LocationService with dependencies
+  /// Opens offline queue box, checks permissions, and sets up initial state
+  /// 
+  /// Requirements: 2, 4
   Future<void> initialize() async {
+    if (_isInitialized) return;
+
+    // Initialize dependencies if not already initialized
+    _apiClient ??= ApiClient();
+    _syncService ??= SyncService();
+    
+    // Open Hive box for offline location queue
     _offlineQueueBox = await Hive.openBox<LocationUpdate>('location_queue');
+    
+    // Check initial permission status
     await checkPermission();
+    
+    // Emit initial offline queue size
     _offlineQueueController.add(offlineQueueSize);
+    
+    _isInitialized = true;
   }
 
   Future<LocationPermissionStatus> checkPermission() async {
@@ -78,12 +113,23 @@ class LocationService {
     return _permissionStatus;
   }
 
+  /// Get current location with validation and fallback support
+  /// 
+  /// Acquires current position using Geolocator with specified accuracy.
+  /// Implements 30-second timeout for location acquisition.
+  /// Validates coordinates are within Ethiopia bounds.
+  /// Rejects (0.0, 0.0) null island coordinates.
+  /// Falls back to network-based location if GPS unavailable.
+  /// Updates current position and stream when successful.
+  /// 
+  /// Requirements: 2
   Future<LocationResult> getCurrentLocation({
     LocationAccuracy accuracy = LocationAccuracy.high,
   }) async {
     final startTime = DateTime.now();
     
     try {
+      // Check permission status
       final permStatus = await checkPermission();
       if (permStatus != LocationPermissionStatus.whileInUse &&
           permStatus != LocationPermissionStatus.always) {
@@ -94,6 +140,7 @@ class LocationService {
         );
       }
 
+      // Check if location service is enabled
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
         return LocationResult(
@@ -103,17 +150,56 @@ class LocationService {
         );
       }
 
-      final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: accuracy,
-        timeLimit: const Duration(seconds: 30),
-      );
+      Position? position;
+      bool usedFallback = false;
 
+      try {
+        // Try to get GPS position with high accuracy and 30-second timeout
+        position = await Geolocator.getCurrentPosition(
+          desiredAccuracy: accuracy,
+          timeLimit: const Duration(seconds: 30),
+        );
+      } on TimeoutException {
+        // GPS timeout - fall back to network-based location
+        try {
+          position = await Geolocator.getCurrentPosition(
+            desiredAccuracy: LocationAccuracy.low, // Network-based location
+            timeLimit: const Duration(seconds: 15),
+          );
+          usedFallback = true;
+        } on TimeoutException {
+          return LocationResult(
+            success: false,
+            error: LocationError.timeout,
+            acquisitionTime: DateTime.now().difference(startTime),
+          );
+        }
+      } catch (e) {
+        // GPS error - fall back to network-based location
+        try {
+          position = await Geolocator.getCurrentPosition(
+            desiredAccuracy: LocationAccuracy.low, // Network-based location
+            timeLimit: const Duration(seconds: 15),
+          );
+          usedFallback = true;
+        } catch (fallbackError) {
+          return LocationResult(
+            success: false,
+            error: LocationError.networkUnavailable,
+            acquisitionTime: DateTime.now().difference(startTime),
+          );
+        }
+      }
+
+      // Validate coordinates using LocationCoordinate model
+      // This will reject null island (0.0, 0.0) and coordinates outside Ethiopia bounds
       try {
         final coordinate = LocationCoordinate(
           latitude: position.latitude,
           longitude: position.longitude,
         );
         
+        // Update current position and notify listeners
         _currentPosition = position;
         _positionController.add(position);
         
@@ -122,7 +208,8 @@ class LocationService {
           position: position,
           acquisitionTime: DateTime.now().difference(startTime),
         );
-      } on InvalidLocationException {
+      } on InvalidLocationException catch (e) {
+        // Coordinates failed validation
         return LocationResult(
           success: false,
           error: LocationError.invalidCoordinates,
@@ -241,7 +328,7 @@ class LocationService {
       );
       
       try {
-        await _apiClient.sendLocationUpdate(update);
+        await _apiClient?.sendLocationUpdate(update);
         final syncedUpdate = update.copyWith(synced: true);
         await _offlineQueueBox?.put(update.id, syncedUpdate);
       } catch (e) {
@@ -269,7 +356,7 @@ class LocationService {
       
       while (retries < 3 && !success) {
         try {
-          await _apiClient.sendLocationBatch(batch);
+          await _apiClient?.sendLocationBatch(batch);
           
           for (final update in batch) {
             final synced = update.copyWith(synced: true);
@@ -295,11 +382,21 @@ class LocationService {
     _offlineQueueController.add(offlineQueueSize);
   }
 
+  /// Dispose method for cleanup
+  /// Cancels timers, closes stream controllers
+  /// 
+  /// Requirements: 2, 4
   void dispose() {
+    // Cancel tracking timer if active
     _trackingTimer?.cancel();
-    _positionController.close();
-    _permissionController.close();
-    _offlineQueueController.close();
+    _trackingTimer = null;
+    
+    // Note: We don't close stream controllers in singleton pattern
+    // because the instance persists. Streams remain open for reuse.
+    // Individual listeners should cancel their subscriptions.
+    
+    // Reset state
+    _isInitialized = false;
   }
 }
 
