@@ -15,7 +15,17 @@ class AppTypography {
   // ============================================================================
   
   /// Base font family - Noto Sans supports Afaan Oromoo, Amharic, and English
-  /// Falls back to system fonts on low-end devices
+  /// 
+  /// Noto Sans was specifically chosen for its comprehensive Unicode support:
+  /// - Full Afaan Oromoo character set (including special diacritics)
+  /// - Complete Amharic (Ge'ez) script support
+  /// - Latin characters for English
+  /// - Optimized for screen readability on mobile devices
+  /// 
+  /// Falls back to system fonts on low-end devices for performance.
+  /// 
+  /// **Design Decision**: Using Google Fonts allows dynamic font loading
+  /// while maintaining offline functionality through caching.
   static TextStyle get _baseTextStyle => GoogleFonts.notoSans(
     color: AppColors.textPrimary,
     fontStyle: FontStyle.normal,
@@ -26,8 +36,16 @@ class AppTypography {
   // DISPLAY STYLES - Large, impactful text
   // ============================================================================
   
-  /// Display Large - 32sp, Bold
-  /// Use for splash screens and major section headers
+  /// Display Large - 32sp, Bold, Height 1.25, Letter Spacing -0.5
+  /// 
+  /// **Use for**: Splash screens, major section headers, hero text
+  /// 
+  /// **Example Usage**:
+  /// ```dart
+  /// Text('Welcome to AgriLink', style: AppTypography.displayLarge)
+  /// ```
+  /// 
+  /// **Accessibility**: High contrast (13.52:1 on background), easily readable
   static TextStyle get displayLarge => _baseTextStyle.copyWith(
     fontSize: 32,
     fontWeight: FontWeight.w700,
@@ -35,8 +53,14 @@ class AppTypography {
     letterSpacing: -0.5,
   );
   
-  /// Display Medium - 28sp, Bold
-  /// Use for dashboard headers
+  /// Display Medium - 28sp, Bold, Height 1.28, Letter Spacing -0.25
+  /// 
+  /// **Use for**: Dashboard headers, major page titles
+  /// 
+  /// **Example Usage**:
+  /// ```dart
+  /// Text('Farmer Dashboard', style: AppTypography.displayMedium)
+  /// ```
   static TextStyle get displayMedium => _baseTextStyle.copyWith(
     fontSize: 28,
     fontWeight: FontWeight.w700,
@@ -44,8 +68,19 @@ class AppTypography {
     letterSpacing: -0.25,
   );
   
-  /// Display Small - 24sp, SemiBold
-  /// Use for page titles
+  /// Display Small - 24sp, SemiBold, Height 1.33, Letter Spacing 0
+  /// 
+  /// **Use for**: Page titles, section headers, dialog titles
+  /// 
+  /// **Example Usage**:
+  /// ```dart
+  /// Text('My Farms', style: AppTypography.displaySmall)
+  /// 
+  /// // In AppBar
+  /// AppBar(
+  ///   title: Text('Market Prices', style: AppTypography.displaySmall),
+  /// )
+  /// ```
   static TextStyle get displaySmall => _baseTextStyle.copyWith(
     fontSize: 24,
     fontWeight: FontWeight.w600,
@@ -110,8 +145,22 @@ class AppTypography {
   // BODY STYLES - Main content text
   // ============================================================================
   
-  /// Body Large - 16sp, Regular
-  /// Primary body text for readable content
+  /// Body Large - 16sp, Regular, Height 1.5, Letter Spacing 0.5
+  /// 
+  /// **Use for**: Primary body text, readable content, descriptions
+  /// 
+  /// **Example Usage**:
+  /// ```dart
+  /// Text(
+  ///   'This produce is fresh from the farm and ready for delivery.',
+  ///   style: AppTypography.bodyLarge,
+  /// )
+  /// 
+  /// // Article or description text
+  /// Text(productDescription, style: AppTypography.bodyLarge)
+  /// ```
+  /// 
+  /// **Design Note**: 16sp is optimal for mobile reading, reducing eye strain
   static TextStyle get bodyLarge => _baseTextStyle.copyWith(
     fontSize: 16,
     fontWeight: FontWeight.w400,
@@ -119,8 +168,17 @@ class AppTypography {
     letterSpacing: 0.5,
   );
   
-  /// Body Medium - 14sp, Regular
-  /// Standard body text
+  /// Body Medium - 14sp, Regular, Height 1.57, Letter Spacing 0.25
+  /// 
+  /// **Use for**: Standard body text, list item content
+  /// 
+  /// **Example Usage**:
+  /// ```dart
+  /// // List item description
+  /// ListTile(
+  ///   subtitle: Text('Available today', style: AppTypography.bodyMedium),
+  /// )
+  /// ```
   static TextStyle get bodyMedium => _baseTextStyle.copyWith(
     fontSize: 14,
     fontWeight: FontWeight.w400,
@@ -128,8 +186,18 @@ class AppTypography {
     letterSpacing: 0.25,
   );
   
-  /// Body Small - 12sp, Regular
-  /// Supporting text, metadata
+  /// Body Small - 12sp, Regular, Height 1.67, Letter Spacing 0.4
+  /// 
+  /// **Use for**: Supporting text, metadata, captions
+  /// 
+  /// **Example Usage**:
+  /// ```dart
+  /// // Timestamp or metadata
+  /// Text('Last updated 2 hours ago', style: AppTypography.bodySmall)
+  /// 
+  /// // Supporting information
+  /// Text('Minimum order: 10kg', style: AppTypography.bodySmall)
+  /// ```
   static TextStyle get bodySmall => _baseTextStyle.copyWith(
     fontSize: 12,
     fontWeight: FontWeight.w400,
@@ -196,8 +264,20 @@ class AppTypography {
   // NUMERIC STYLES - Prices, quantities, statistics
   // ============================================================================
   
-  /// Price Large - 32sp, Bold
-  /// Major price displays
+  /// Price Large - 32sp, Bold, Height 1.25, Letter Spacing -0.5
+  /// 
+  /// **Use for**: Major price displays, hero prices, featured statistics
+  /// 
+  /// **Example Usage**:
+  /// ```dart
+  /// // Hero price display
+  /// Text('2,500 ETB', style: AppTypography.priceLarge)
+  /// 
+  /// // Dashboard statistic
+  /// Text('145', style: AppTypography.priceLarge)
+  /// ```
+  /// 
+  /// **Design Note**: Uses primary color (#3A7D44) to draw attention
   static TextStyle get priceLarge => _baseTextStyle.copyWith(
     fontSize: 32,
     fontWeight: FontWeight.w700,
@@ -206,8 +286,22 @@ class AppTypography {
     color: AppColors.primary,
   );
   
-  /// Price Medium - 24sp, SemiBold
-  /// Card-level prices
+  /// Price Medium - 24sp, SemiBold, Height 1.33
+  /// 
+  /// **Use for**: Card-level prices, section prices
+  /// 
+  /// **Example Usage**:
+  /// ```dart
+  /// // Product card price
+  /// Card(
+  ///   child: Column(
+  ///     children: [
+  ///       Text('Coffee Beans'),
+  ///       Text('850 ETB/kg', style: AppTypography.priceMedium),
+  ///     ],
+  ///   ),
+  /// )
+  /// ```
   static TextStyle get priceMedium => _baseTextStyle.copyWith(
     fontSize: 24,
     fontWeight: FontWeight.w600,
@@ -215,8 +309,18 @@ class AppTypography {
     color: AppColors.primary,
   );
   
-  /// Price Small - 16sp, SemiBold
-  /// List item prices
+  /// Price Small - 16sp, SemiBold, Height 1.5
+  /// 
+  /// **Use for**: List item prices, compact price displays
+  /// 
+  /// **Example Usage**:
+  /// ```dart
+  /// // List item price
+  /// ListTile(
+  ///   title: Text('Maize'),
+  ///   trailing: Text('450 ETB', style: AppTypography.priceSmall),
+  /// )
+  /// ```
   static TextStyle get priceSmall => _baseTextStyle.copyWith(
     fontSize: 16,
     fontWeight: FontWeight.w600,
