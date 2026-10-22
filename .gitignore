@@ -152,3 +152,9 @@ ehthumbs.db
 .svn/
 .swiftpm/
 migrate_working_dir/
+
+# ------------------------------------------------------------------------------
+# 10. Documentation & Internal Notes (Keep only README.md)
+# ------------------------------------------------------------------------------
+*.md
+!README.md
