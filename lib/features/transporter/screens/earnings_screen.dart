@@ -496,7 +496,7 @@ class _EarningsScreenState extends State<EarningsScreen> {
                           onPressed: () => Navigator.pop(dialogContext),
                           style: FilledButton.styleFrom(
                             backgroundColor: AppColors.primary,
-                            foregroundColor: Colors.white,
+                            foregroundColor: AppColors.textPrimary,
                           ),
                           child: const Text('Done'),
                         ),
