@@ -68,7 +68,7 @@ class ProfileScreen extends StatelessWidget {
               icon: Icons.phone_outlined,
               label: 'Phone Number',
               value: user?.phone ?? '—',
-              color: AppColors.tertiary,
+              color: AppColors.tertiaryDark,
             ),
             const SizedBox(height: 12),
             _buildInfoTile(
