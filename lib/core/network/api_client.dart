@@ -606,6 +606,25 @@ class ApiClient {
   ) async {
     await _dio.put('/api/v1/notifications/preferences', data: preference.toJson());
   }
+
+  /// Get transport trip location history
+  Future<Map<String, dynamic>> getTransportTripLocation(String tripId) async {
+    final response = await _dio.get('/api/v1/transport/trips/$tripId/location');
+    return response.data;
+  }
+
+  /// Execute notification action (e.g., Accept/Decline order)
+  Future<void> executeNotificationAction(
+    String notificationId,
+    String action,
+    Map<String, dynamic>? actionData,
+  ) async {
+    await _dio.post('/api/v1/notifications/action', data: {
+      'notificationId': notificationId,
+      'action': action,
+      'data': actionData,
+    });
+  }
 }
 
 /// API Response wrapper with type safety
