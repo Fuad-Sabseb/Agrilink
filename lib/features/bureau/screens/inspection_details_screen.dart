@@ -605,18 +605,18 @@ class _InspectionDetailsScreenState extends State<InspectionDetailsScreen> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: AppColors.tertiary.withValues(alpha: 0.1),
+                  color: AppColors.tertiaryDark.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.lightbulb_outline, size: 16, color: AppColors.tertiary),
+                    const Icon(Icons.lightbulb_outline, size: 16, color: AppColors.tertiaryDark),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         finding.recommendation!,
                         style: const TextStyle(
-                          color: AppColors.tertiary,
+                          color: AppColors.tertiaryDark,
                           fontSize: 13,
                         ),
                       ),
