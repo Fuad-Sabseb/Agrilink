@@ -42,7 +42,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       description:
           'Track crop prices across Ethiopian markets, get personalized selling recommendations, and make informed decisions.',
       icon: Icons.trending_up,
-      color: AppColors.tertiary,
+      color: AppColors.tertiaryDark,
     ),
     OnboardingPage(
       title: 'Manage Your Farm',
