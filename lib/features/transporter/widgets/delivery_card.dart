@@ -157,7 +157,7 @@ class DeliveryCard extends StatelessWidget {
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.my_location, size: 14, color: AppColors.tertiary),
+                      Icon(Icons.my_location, size: 14, color: AppColors.tertiaryDark),
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
