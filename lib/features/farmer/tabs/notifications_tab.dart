@@ -26,7 +26,7 @@ class _NotificationsTabState extends State<NotificationsTab>
   Future<void> _refreshData() async {
     final userId = _sessionService.currentUserId;
     if (userId != null) {
-      await context.read<NotificationProvider>().loadUserNotifications(userId);
+      await context.read<NotificationProvider>().loadUserNotifications();
     }
   }
 
@@ -34,7 +34,7 @@ class _NotificationsTabState extends State<NotificationsTab>
     try {
       final userId = _sessionService.currentUserId;
       if (userId == null) return;
-      await context.read<NotificationProvider>().markAllAsRead(userId);
+      await context.read<NotificationProvider>().markAllAsRead();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -78,7 +78,7 @@ class _NotificationsTabState extends State<NotificationsTab>
     }
   }
 
-  List<AppNotification> _getFilteredNotifications(List<AppNotification> notifications) {
+  dynamic _getFilteredNotifications(dynamic notifications) {
     if (_selectedFilter == 'all') {
       return notifications;
     } else if (_selectedFilter == 'unread') {
@@ -216,7 +216,7 @@ class _NotificationsTabState extends State<NotificationsTab>
 
   Widget _buildNotificationsList(
     NotificationProvider provider,
-    List<AppNotification> notifications,
+    dynamic notifications,
   ) {
     if (provider.isLoading) {
       return Center(
@@ -285,11 +285,11 @@ class _NotificationsTabState extends State<NotificationsTab>
     );
   }
 
-  Widget _buildNotificationCard(AppNotification notification) {
+  Widget _buildNotificationCard(dynamic notification) {
     final dateFormat = DateFormat('MMM dd, hh:mm a');
     
-    Color typeColor;
-    IconData typeIcon;
+    Color typeColor = AppColors.textSecondary;
+    IconData typeIcon = Icons.notifications_outlined;
     
     switch (notification.type) {
       case NotificationType.order:
@@ -311,6 +311,9 @@ class _NotificationsTabState extends State<NotificationsTab>
       case NotificationType.marketing:
         typeColor = AppColors.accent;
         typeIcon = Icons.campaign_outlined;
+        break;
+      default:
+        // Use already initialized defaults
         break;
     }
 
