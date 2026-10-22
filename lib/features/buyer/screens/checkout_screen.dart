@@ -264,7 +264,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           ),
           child: Row(
             children: [
-              Icon(Icons.info_outline, color: AppColors.tertiary),
+              Icon(Icons.info_outline, color: AppColors.tertiaryDark),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
