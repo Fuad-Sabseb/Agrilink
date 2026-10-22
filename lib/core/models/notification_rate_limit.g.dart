@@ -18,7 +18,7 @@ class NotificationRateLimitAdapter extends TypeAdapter<NotificationRateLimit> {
     };
     return NotificationRateLimit(
       typeIndex: fields[0] as int,
-      recentNotifications: (fields[1] as List?)?.cast<DateTime>(),
+      recentNotifications: (fields[1] as List).cast<DateTime>(),
       maxPerMinute: fields[2] as int,
     );
   }
