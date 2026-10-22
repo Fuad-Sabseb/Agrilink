@@ -52,7 +52,7 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen>
         context.read<ProduceProvider>().loadFarmerProduce(userId),
         context.read<OrderProvider>().loadFarmerOrders(userId),
         context.read<TransportProvider>().loadFarmerTransportRequests(userId),
-        context.read<NotificationProvider>().loadUserNotifications(userId),
+        context.read<NotificationProvider>().loadUserNotifications(),
       ]);
 
       setState(() => _isInitialized = true);
