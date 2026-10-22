@@ -47,7 +47,7 @@ class _AppTutorialState extends State<AppTutorial> {
       title: 'For Bureau Officers',
       description: '1. Switch woreda if needed\n2. Review inspection requests\n3. Conduct inspections\n4. Track compliance',
       icon: Icons.verified_user,
-      color: AppColors.tertiary,
+      color: AppColors.tertiaryDark,
     ),
     TutorialPage(
       title: 'Quick Support',
