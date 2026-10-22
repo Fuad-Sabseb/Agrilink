@@ -287,4 +287,13 @@ class MockAuthService extends _i1.Mock implements _i3.AuthService {
           ),
         )),
       ) as _i4.Future<String>);
+
+  @override
+  _i4.Future<bool> deleteAccount() => (super.noSuchMethod(
+        Invocation.method(
+          #deleteAccount,
+          [],
+        ),
+        returnValue: _i4.Future<bool>.value(false),
+      ) as _i4.Future<bool>);
 }
